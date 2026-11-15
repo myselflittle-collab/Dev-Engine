@@ -57,7 +57,7 @@ export const KINDS = {
     about: 'A calm, luxurious space where you can relax while our experts take care of you.', cta: 'Book now',
   },
   shop: {
-    label: 'Online store', emoji: '🛍️', words: ['shop', 'store', 'ecommerce', 'e-commerce', 'boutique', 'clothing', 'fashion', 'products', 'sell'],
+    label: 'Online store', emoji: '🛍️', words: ['shop', 'store', 'ecommerce', 'e-commerce', 'boutique', 'clothing', 'fashion', 'products', 'sell', 'watch', 'watches', 'jewel', 'jewellery', 'jewelry', 'shoe', 'sneaker', 'mobile', 'phone', 'electronics', 'gadget', 'furniture', 'perfume', 'bag', 'saree', 'almirah', 'wardrobe', 'mall', 'toy', 'eyewear', 'glasses', 'laptop', 'headphone'],
     theme: { primary: '#111827', accent: '#10b981', bg: '#ffffff', text: '#111827', font: 'DM Sans', headingFont: 'Poppins', radius: 12 },
     headline: 'New collection is here', sub: 'Quality products, honest prices and free shipping on every order.',
     services: [['🚚', 'Free Shipping', 'On all orders, every day.'], ['↩️', 'Easy Returns', '30-day no-questions return policy.'], ['🔒', 'Secure Payment', 'UPI, cards and cash on delivery.']],
@@ -99,6 +99,26 @@ export const KINDS = {
     about: 'Trusted by 10,000+ teams around the world.', cta: 'Get started free',
   },
 };
+
+/** Product-specific copy so "a website for my watch shop" talks about watches. */
+export const PRODUCTS = [
+  [/\bwatch(es)?\b|\bclock/i, '⌚', 'Timeless watches, crafted to last', 'Luxury and everyday watches with free shipping and a 2-year warranty.'],
+  [/\bshoe|sneaker|footwear/i, '👟', 'Step up your style', 'Comfortable, stylish shoes for every day and every occasion.'],
+  [/\b(phone|mobile|smartphone)/i, '📱', 'The latest phones, best prices', 'Genuine smartphones and accessories with easy EMI and fast delivery.'],
+  [/\b(laptop|computer|electronic|gadget)/i, '💻', 'Tech that powers your life', 'Laptops, gadgets and accessories from top brands — with expert support.'],
+  [/\bheadphone|earbud|speaker/i, '🎧', 'Sound you can feel', 'Premium headphones and speakers for music lovers.'],
+  [/\bjewel/i, '💍', 'Jewellery that tells your story', 'Handcrafted gold, silver and diamond designs for every celebration.'],
+  [/\bperfume|fragrance|attar/i, '🧴', 'Find your signature scent', 'Long-lasting perfumes and attars from around the world.'],
+  [/\bfurniture|sofa|almirah|wardrobe|interior/i, '🛋️', 'Furniture made for living', 'Beautiful, durable furniture and wardrobes delivered to your home.'],
+  [/\bbag|handbag|luggage/i, '👜', 'Carry it in style', 'Handbags, backpacks and travel bags built to last.'],
+  [/\bsaree|saree|ethnic|kurta/i, '🥻', 'Elegance woven in every thread', 'Handloom sarees and ethnic wear from master weavers.'],
+  [/\b(glasses|eyewear|sunglass)/i, '🕶️', 'See the world in style', 'Designer frames and sunglasses with free eye tests.'],
+  [/\btoy/i, '🧸', 'Toys that spark joy', 'Safe, fun and educational toys for every age.'],
+  [/\bbook/i, '📚', 'Stories worth reading', 'Bestsellers, classics and textbooks delivered to your door.'],
+  [/\bflower|florist|bouquet/i, '💐', 'Fresh flowers for every moment', 'Same-day flower delivery for birthdays, weddings and love.'],
+  [/\b(car|bike|automobile|scooter)/i, '🚗', 'Drive your dream', 'New and certified pre-owned vehicles with easy finance.'],
+];
+export const is3D = (t) => /\b3\s?-?d\b|three[ -]?d(imensional)?\b/i.test(String(t));
 
 /** Detect the kind of website and the brand name from a prompt. */
 export function detectKind(text) {
@@ -236,6 +256,16 @@ export const SECTION_LIBRARY = {
       ],
     }),
   },
+  showcase3d: {
+    label: '3D showcase', icon: '🧊', make: (name, k) => section('showcase3d', '3D showcase', {
+      layout: 'split', style: { padY: 100, bgGradient: true }, anim: { bgEffect: '3d-grid' },
+      elements: [
+        el('heading', { text: 'See it in 3D', level: 2 }, { col: 0 }, { in: 'rise-3d' }),
+        el('text', { text: 'Drag to rotate, pinch to zoom — and on iPhone/iPad tap “View in your space” to place it in your room with AR.' }, { col: 0, opacity: 0.85, fontSize: 18 }, { in: 'fade-up', delay: 0.15 }),
+        el('model3d', { src: '', emoji: k.emoji, autoRotate: true, ar: true }, { col: 1 }, { in: 'zoom-in', dur: 1.1 }),
+      ],
+    }),
+  },
   free: {
     label: 'Free canvas (drag anywhere)', icon: '🎨', make: (name, k) => section('free', 'Free canvas', {
       layout: 'free', style: { padY: 0, minH: 480, bgAlt: true },
@@ -262,21 +292,46 @@ export const ELEMENT_LIBRARY = [
   ['spacer', '↕️', 'Spacer', () => el('spacer', {}, { height: 40 })],
   ['form', '📮', 'Contact form', () => el('form', { fields: ['Name', 'Email', 'Message'], button: 'Send' }, {}, { in: 'fade-up' })],
   ['social', '🔗', 'Social icons', () => el('social', { links: [{ icon: '📘', href: '#' }, { icon: '📸', href: '#' }, { icon: '▶️', href: '#' }] }, {})],
+  ['model3d', '🧊', '3D model', () => el('model3d', { src: '', emoji: '⭐', autoRotate: true, ar: true }, {}, { in: 'zoom-in' })],
   ['map', '🗺️', 'Map', () => el('map', { query: 'Bhubaneswar, Odisha' }, { radius: 16 }, { in: 'fade-up' })],
 ];
 
 /** Create a full website from a prompt like "make a website for my bakery called Sweet Crumbs". */
 export function generateSite(prompt = '', forcedKind) {
   const kind = forcedKind || detectKind(prompt);
-  const k = KINDS[kind];
+  let k = KINDS[kind];
+  const prod = PRODUCTS.find(([re]) => re.test(prompt));
+  if (prod) k = { ...k, emoji: prod[1], headline: prod[2], sub: prod[3] };
   const name = extractName(prompt) || defaultName(kind);
   const order = ['navbar', 'hero', 'features', 'about', 'gallery', 'testimonials', ...(['business', 'fitness', 'education', 'tech', 'salon'].includes(kind) ? ['pricing'] : []), 'cta', 'contact', 'footer'];
-  return {
-    version: 1, name, kind,
+  const site = {
+    version: 1, name, kind, emoji: k.emoji,
     theme: { ...k.theme },
     seo: { title: name, description: k.sub },
     sections: order.map((s) => SECTION_LIBRARY[s].make(name, k)),
   };
+  if (is3D(prompt)) make3D(site);
+  return site;
+}
+
+/** Turn a site into a 3D experience: 3D model in the hero, 3D entrances, tilt cards, 3D grid floor, scroll-driven 3D sections. */
+export function make3D(site) {
+  const emoji = site.emoji || (KINDS[site.kind] || KINDS.business).emoji;
+  for (const s of site.sections) {
+    if (s.type === 'hero') {
+      s.anim = { ...s.anim, bgEffect: '3d-grid' };
+      const i = s.elements.findIndex((e) => e.kind === 'icon' || e.kind === 'model3d');
+      const m = el('model3d', { src: '', emoji, autoRotate: true, ar: true }, { col: 1 }, { in: 'zoom-in', dur: 1.2, delay: 0.2 });
+      if (i >= 0) { if (s.elements[i].kind !== 'model3d') s.elements[i] = m; } else s.elements.push(m);
+      s.elements.forEach((e) => { if (e.kind === 'heading') e.anim = { ...e.anim, in: 'rise-3d', dur: 1 }; });
+    } else if (s.type !== 'navbar' && s.type !== 'footer') {
+      s.anim = { ...s.anim, scroll3d: true };
+    }
+    s.elements.forEach((e) => {
+      if (['card', 'quote', 'price', 'image'].includes(e.kind)) e.anim = { ...e.anim, hover: 'tilt3d', in: e.kind === 'image' ? 'rise-3d' : 'flip-3d' };
+    });
+  }
+  return site;
 }
 
 function defaultName(kind) {

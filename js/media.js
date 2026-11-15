@@ -19,9 +19,10 @@ const tx = async (mode, fn) => { const d = await db(); return new Promise((res, 
 export async function addAsset(siteId, file) {
   const id = 'a' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
   const blob = file.type.startsWith('image/') && file.size > 1_500_000 && !/gif|svg/.test(file.type) ? await shrinkImage(file, 2000) : file;
-  await tx('readwrite', (s) => s.put({ id, site: siteId, name: file.name, type: blob.type || file.type, size: blob.size, blob, at: Date.now() }));
+  const type = blob.type || file.type || (/\.glb$/i.test(file.name) ? 'model/gltf-binary' : /\.gltf$/i.test(file.name) ? 'model/gltf+json' : '');
+  await tx('readwrite', (s) => s.put({ id, site: siteId, name: file.name, type, size: blob.size, blob, at: Date.now() }));
   urls.set(id, URL.createObjectURL(blob));
-  return { id, name: file.name, type: blob.type || file.type, size: blob.size };
+  return { id, name: file.name, type, size: blob.size };
 }
 
 export async function listAssets(siteId) {
@@ -44,7 +45,7 @@ export function blobToDataURL(blob) {
   return new Promise((res) => { const r = new FileReader(); r.onload = () => res(r.result); r.readAsDataURL(blob); });
 }
 
-export const extFor = (type) => ({ 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif', 'image/svg+xml': 'svg', 'video/mp4': 'mp4', 'video/webm': 'webm', 'video/quicktime': 'mov' }[type] || (type.split('/')[1] || 'bin'));
+export const extFor = (type) => ({ 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif', 'image/svg+xml': 'svg', 'video/mp4': 'mp4', 'video/webm': 'webm', 'video/quicktime': 'mov', 'model/gltf-binary': 'glb', 'model/gltf+json': 'gltf' }[type] || (type.split('/')[1] || 'bin'));
 
 async function shrinkImage(file, max) {
   try {
@@ -56,3 +57,5 @@ async function shrinkImage(file, max) {
     return await new Promise((r) => c.toBlob((b) => r(b || file), 'image/jpeg', 0.85));
   } catch { return file; }
 }
+
+export const isModel = (a) => /^model\//.test(a.type || '') || /\.(glb|gltf)$/i.test(a.name || '');

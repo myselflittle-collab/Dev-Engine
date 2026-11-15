@@ -98,3 +98,32 @@ test('render + export contain animations and are safe', () => {
   assert.match(e.css, /@media \(max-width:760px\)/);
   assert.match(e.js, /IntersectionObserver/);
 });
+
+test('3D websites and product-aware copy', async () => {
+  const { generateSite: g } = await import('../js/sitegen.js');
+  const s = g('Make a 3d website named Watch');
+  assert.equal(s.name, 'Watch');
+  assert.equal(s.kind, 'shop');
+  const hero = s.sections.find((x) => x.type === 'hero');
+  assert.match(hero.elements.find((e) => e.kind === 'heading').props.text, /watches/i);
+  assert.ok(hero.elements.some((e) => e.kind === 'model3d' && e.props.emoji === '⌚'));
+  assert.equal(hero.anim.bgEffect, '3d-grid');
+  assert.ok(s.sections.some((x) => x.anim.scroll3d));
+  const r = renderSite(s, { mode: 'export' });
+  assert.match(r.body, /class="css3d/);
+  assert.match(r.body, /sc-3d/);
+  assert.match(r.body, /grid3d/);
+  assert.equal(r.needs3d, false);
+  hero.elements.find((e) => e.kind === 'model3d').props.src = 'https://x/y.glb';
+  const d = exportDocument(s);
+  assert.match(d.html, /model-viewer\.min\.js/);
+  assert.match(d.html, /<model-viewer[^>]+src="https:\/\/x\/y\.glb"[^>]+auto-rotate[^>]+camera-controls[^>]+ar /);
+  const plain = g('website for my watch shop');
+  assert.ok(!plain.sections.some((x) => x.anim.scroll3d));
+  assert.ok(plain.sections.find((x) => x.type === 'hero').elements.some((e) => e.kind === 'icon' && e.props.text === '⌚'));
+  const t = g('bakery');
+  assert.match(runCommand(t, 'make it 3d').reply, /3D/);
+  assert.ok(t.sections.find((x) => x.type === 'hero').elements.some((e) => e.kind === 'model3d'));
+  assert.ok(runCommand(t, 'add a 3d model to the about section').changed);
+  assert.ok(sec(t, 'about').elements.some((e) => e.kind === 'model3d'));
+});

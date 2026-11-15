@@ -1,9 +1,9 @@
 // Visual website builder: Figma-like editing + animations + chat assistant.
 import { $, $$, el, esc, toast, debounce, modal, confirmModal, download } from './ui.js';
-import { SECTION_LIBRARY, ELEMENT_LIBRARY, KINDS, FONTS, generateSite } from './sitegen.js';
-import { renderSite, exportDocument, runtime, ENTRANCES, HOVERS, LOOPS, BG_EFFECTS } from './siterender.js';
+import { SECTION_LIBRARY, ELEMENT_LIBRARY, KINDS, FONTS, generateSite, make3D } from './sitegen.js';
+import { renderSite, exportDocument, runtime, ENTRANCES, HOVERS, LOOPS, BG_EFFECTS, MODEL_VIEWER_URL } from './siterender.js';
 import { runCommand, HELP } from './assistant.js';
-import { addAsset, listAssets, resolveSrc, getAsset, deleteAsset, blobToDataURL, extFor } from './media.js';
+import { addAsset, listAssets, resolveSrc, getAsset, deleteAsset, blobToDataURL, extFor, isModel } from './media.js';
 import { renderMarkdown } from './ai.js';
 
 const B = {
@@ -66,6 +66,7 @@ function render() {
   }
   const r = renderSite(B.site, { mode: 'editor', resolve: resolveSrc, selected: B.selected });
   loadFonts(r.fonts);
+  if (r.needs3d && !document.getElementById('bd-mv')) document.head.append(el('script', { id: 'bd-mv', type: 'module', src: MODEL_VIEWER_URL }));
   const scrollTop = $('#bd-canvas').scrollTop;
   B.shadow.innerHTML = `<style>${r.css}\n:host{display:block}</style>${r.body}`;
   $('#bd-canvas').scrollTop = scrollTop;
@@ -242,8 +243,8 @@ function renderLeft() {
       void i;
     });
   } else {
-    const inp = el('input', { type: 'file', accept: 'image/*,video/*', multiple: true, hidden: true, onchange: (e) => uploadFiles(e.target.files) });
-    box.append(el('button', { class: 'btn primary', style: { width: '100%' }, onclick: () => inp.click() }, '⬆ Upload photos / videos'), inp,
+    const inp = el('input', { type: 'file', accept: 'image/*,video/*,.glb,.gltf,model/gltf-binary', multiple: true, hidden: true, onchange: (e) => uploadFiles(e.target.files) });
+    box.append(el('button', { class: 'btn primary', style: { width: '100%' }, onclick: () => inp.click() }, '⬆ Upload photos / videos / 3D'), inp,
       el('div', { class: 'muted small', style: { margin: '6px 0 10px' } }, 'From your iPad Photos or Files. Then tap one to add it, or select an image/video and press “Use”.'));
     const grid = el('div', { class: 'bd-media' });
     if (!B.assets.length) grid.append(el('div', { class: 'muted small' }, 'No media yet.'));
@@ -251,7 +252,7 @@ function renderLeft() {
       const url = resolveSrc('asset:' + a.id);
       const isVid = a.type.startsWith('video');
       grid.append(el('div', { class: 'bd-m' },
-        isVid ? el('video', { src: url, muted: true, playsInline: true }) : el('img', { src: url, alt: a.name }),
+        isModel(a) ? el('div', { class: 'bd-m3d' }, '🧊', el('small', {}, a.name)) : isVid ? el('video', { src: url, muted: true, playsInline: true }) : el('img', { src: url, alt: a.name }),
         el('div', { class: 'bd-m-actions' },
           el('button', { class: 'btn sm primary', onclick: () => useAsset(a) }, B.selected ? 'Use' : 'Add'),
           el('button', { class: 'btn sm', onclick: async () => { await deleteAsset(a.id); B.assets = B.assets.filter((x) => x.id !== a.id); renderLeft(); } }, '🗑'))));
@@ -294,7 +295,7 @@ function addSection(type) {
 async function uploadFiles(files, apply) {
   const added = [];
   for (const f of files) {
-    if (!/^(image|video)\//.test(f.type)) { toast(`${f.name}: not an image or video`, 'err'); continue; }
+    if (!/^(image|video)\//.test(f.type) && !/\.(glb|gltf)$/i.test(f.name)) { toast(`${f.name}: use an image, video or .glb 3D model`, 'err'); continue; }
     if (f.size > 80 * 1024 * 1024) { toast(`${f.name}: too large (max 80 MB)`, 'err'); continue; }
     try { added.push(await addAsset(B.project.id, f)); } catch (e) { toast('Could not store file: ' + e.message, 'err'); }
   }
@@ -309,6 +310,11 @@ function useAsset(a) {
   const isVid = a.type.startsWith('video');
   const f = findEl(B.selected);
   const s = !f && findSec(B.selected);
+  if (isModel(a)) {
+    if (f && f.el.kind === 'model3d') change(() => { f.el.props.src = src; });
+    else addElement({ id: 'e' + Math.random().toString(36).slice(2, 9), kind: 'model3d', props: { src, autoRotate: true, ar: true }, style: {}, anim: { in: 'zoom-in' } });
+    return;
+  }
   if (f && ['image', 'video', 'card'].includes(f.el.kind)) {
     change(() => {
       if (f.el.kind === 'card') f.el.props.img = src;
@@ -378,10 +384,10 @@ function linesInput(obj, key, toLines, fromLines, placeholder) {
   return t;
 }
 function mediaButtons(e, key, accept) {
-  const urlIn = el('input', { placeholder: accept.startsWith('video') ? 'or paste YouTube / MP4 link' : 'or paste image link', value: String(e.props[key] || '').startsWith('asset:') ? '' : e.props[key] || '' });
+  const urlIn = el('input', { placeholder: accept.startsWith('video') ? 'or paste YouTube / MP4 link' : accept.includes('glb') ? 'or paste a .glb link' : 'or paste image link', value: String(e.props[key] || '').startsWith('asset:') ? '' : e.props[key] || '' });
   urlIn.onchange = () => change(() => { e.props[key] = urlIn.value.trim(); });
   return el('div', { class: 'bd-media-btns' },
-    el('button', { class: 'btn primary sm', onclick: () => pickMedia(accept, (a) => change(() => { e.props[key] = 'asset:' + a.id; })) }, `⬆ ${e.props[key] ? 'Replace' : 'Upload'} ${accept.startsWith('video') ? 'video' : 'image'}`),
+    el('button', { class: 'btn primary sm', onclick: () => pickMedia(accept, (a) => change(() => { e.props[key] = 'asset:' + a.id; })) }, `⬆ ${e.props[key] ? 'Replace' : 'Upload'} ${accept.startsWith('video') ? 'video' : accept.includes('glb') ? '3D model (.glb)' : 'image'}`),
     el('button', { class: 'btn sm', onclick: () => { setLeftTab('media'); setMobilePanel('left'); } }, '🖼 From media'),
     urlIn);
 }
@@ -404,6 +410,12 @@ function elementEditor({ el: e, sec }) {
   if (e.kind === 'form') content.push(row('Fields (one per line)', linesInput(p, 'fields', (a) => a.join('\n'), (a) => a)), row('Button text', inputFor(p, 'button')), row('Send to email (optional)', inputFor(p, 'email', { placeholder: 'you@example.com' })));
   if (e.kind === 'social') content.push(row('Links (icon | url)', linesInput(p, 'links', (a) => a.map((x) => `${x.icon} | ${x.href}`).join('\n'), (a) => a.map((l) => { const [icon, href] = l.split('|').map((x) => x.trim()); return { icon, href: href || '#' }; }))));
   if (e.kind === 'map') content.push(row('Address / place', inputFor(p, 'query')));
+  if (e.kind === 'model3d') content.push(
+    mediaButtons(e, 'src', '.glb,.gltf,model/gltf-binary'),
+    el('div', { class: 'muted small' }, 'Upload a .glb 3D model (free ones: Sketchfab, Poly Pizza, or make one with an AI 3D generator). Until then a spinning 3D emoji badge is shown.'),
+    row('Badge emoji (no model)', inputFor(p, 'emoji')),
+    checkFor(p, 'autoRotate', 'Auto-rotate'), checkFor(p, 'ar', 'Allow “View in your room” (AR on iPhone/iPad/Android)'),
+    row('Height (px)', inputFor(e.style, 'height', { type: 'number', min: 200, max: 1000, placeholder: 'auto' })));
   if (e.kind === 'nav') content.push(row('Brand', inputFor(p, 'brand')), row('Links (text | #section)', linesInput(p, 'links', (a) => a.map((x) => `${x.text} | ${x.href}`).join('\n'), (a) => a.map((l) => { const [text, href] = l.split('|').map((x) => x.trim()); return { text, href: href || '#' }; }))), row('Button', inputFor(p, 'cta')));
   out.push(group('Content', content));
   const style = [];
@@ -489,6 +501,7 @@ function sectionAnimEditor(s) {
       ['parallax', 'ken-burns'].includes(a.bgEffect) && !s.style.bgImage ? el('div', { class: 'muted small' }, '⚠ Add a background image in the Edit tab to see this effect.') : null].filter(Boolean)),
     group('All elements in this section', [el('div', { class: 'bd-chips' }, Object.entries(ENTRANCES).map(([k, l]) => el('button', { class: 'chip', onclick: () => change(() => s.elements.forEach((e, i) => { e.anim = { ...e.anim, in: k, dur: e.anim?.dur || 0.8, delay: Math.round(i * 0.12 * 100) / 100 }; })) }, l))),
       el('div', { class: 'muted small' }, 'Applied one-by-one (staggered).')]),
+    group('3D', [checkFor(a, 'scroll3d', 'Tilt into view in 3D while scrolling')]),
     el('button', { class: 'btn sm primary', onclick: play }, '▶ Play all animations'),
   ];
 }
@@ -498,7 +511,8 @@ function globalAnimEditor() {
     ['✨ Smooth & elegant', () => allEls().forEach((e, i) => { e.anim = { ...e.anim, in: 'fade-up', dur: 0.9, delay: (i % 4) * 0.1 }; })],
     ['🎉 Fun & bouncy', () => allEls().forEach((e, i) => { e.anim = { ...e.anim, in: 'bounce-in', dur: 0.9, delay: (i % 4) * 0.1, hover: e.kind === 'button' || e.kind === 'card' ? 'grow' : e.anim?.hover }; })],
     ['🚀 Bold & dramatic', () => { allEls().forEach((e, i) => { e.anim = { ...e.anim, in: i % 2 ? 'from-right' : 'from-left', dur: 1, delay: (i % 3) * 0.12 }; }); B.site.sections.forEach((s) => { if (s.type === 'hero' || s.type === 'cta') s.anim = { ...s.anim, bgEffect: 'gradient-shift' }; }); }],
-    ['🧊 Minimal (fade only)', () => allEls().forEach((e) => { e.anim = { in: 'fade', dur: 0.8 }; })],
+    ['🧊 Full 3D experience', () => make3D(B.site)],
+    ['🍃 Minimal (fade only)', () => allEls().forEach((e) => { e.anim = { in: 'fade', dur: 0.8 }; })],
     ['🚫 No animation', () => { allEls().forEach((e) => { e.anim = {}; }); B.site.sections.forEach((s) => { s.anim = {}; }); }],
   ];
   return [
@@ -562,7 +576,7 @@ async function aiEdit(text) {
   const bubble = el('div', { class: 'msg ai typing' }, '🤖 Thinking…'); $('#bd-msgs').append(bubble);
   try {
     const sys = `You are the design assistant of a visual website builder. The website is a JSON document.
-Schema: { name, kind, theme:{primary,accent,bg,text,font,headingFont,radius}, seo:{title,description}, sections:[{id,type,name,layout:'stack'|'split'|'grid2'|'grid3'|'grid4'|'free',style:{bg,color,padY,minH,align,bgImage,bgGradient,bgAlt,overlay,sticky,shadow},anim:{bgEffect:'none'|'gradient-shift'|'parallax'|'ken-burns'|'bubbles'},elements:[{id,kind:'heading'|'text'|'button'|'image'|'video'|'card'|'icon'|'shape'|'quote'|'price'|'stats'|'form'|'social'|'divider'|'spacer'|'map'|'nav',props:{...},style:{color,bg,fontSize,weight,font,align,radius,padding,width,opacity,shadow,upper,col,span},anim:{in:${Object.keys(ENTRANCES).map((x) => `'${x}'`).join('|')},dur,delay,trigger:'scroll'|'load',hover:${Object.keys(HOVERS).map((x) => `'${x}'`).join('|')},loop:${Object.keys(LOOPS).map((x) => `'${x}'`).join('|')}},pos:{x,y} (free layout only, percent)}]}]}
+Schema: { name, kind, theme:{primary,accent,bg,text,font,headingFont,radius}, seo:{title,description}, sections:[{id,type,name,layout:'stack'|'split'|'grid2'|'grid3'|'grid4'|'free',style:{bg,color,padY,minH,align,bgImage,bgGradient,bgAlt,overlay,sticky,shadow},anim:{bgEffect:'none'|'gradient-shift'|'parallax'|'ken-burns'|'bubbles'|'3d-grid',scroll3d:boolean},elements:[{id,kind:'heading'|'text'|'button'|'image'|'video'|'card'|'icon'|'shape'|'quote'|'price'|'stats'|'form'|'social'|'divider'|'spacer'|'map'|'nav'|'model3d' (props:{src: .glb url or "",emoji,autoRotate,ar}),props:{...},style:{color,bg,fontSize,weight,font,align,radius,padding,width,opacity,shadow,upper,col,span},anim:{in:${Object.keys(ENTRANCES).map((x) => `'${x}'`).join('|')},dur,delay,trigger:'scroll'|'load',hover:${Object.keys(HOVERS).map((x) => `'${x}'`).join('|')},loop:${Object.keys(LOOPS).map((x) => `'${x}'`).join('|')}},pos:{x,y} (free layout only, percent)}]}]}
 Keep existing ids and "asset:" image/video sources unchanged. New ids: any unique string. Fonts must be Google Fonts.
 Reply with ONE short sentence describing the change, then the COMPLETE updated JSON in a \`\`\`json code block.`;
     const reply = await B.deps.chat([{ role: 'user', content: `Current website JSON:\n\`\`\`json\n${JSON.stringify(B.site)}\n\`\`\`\nSelected id: ${B.selected || 'none'}\n\nRequest: ${text}` }], { system: sys, onToken: (t) => { bubble.textContent = '🤖 ' + t.split('```')[0].slice(0, 300); } });

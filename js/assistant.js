@@ -1,7 +1,7 @@
 // Offline design assistant for the visual builder — understands plain-English commands
 // like "animate the hero with bounce", "make buttons pulse", "change title to Fresh Cakes",
 // "make background dark", "add a pricing section". No API key needed.
-import { SECTION_LIBRARY, KINDS, FONTS, el } from './sitegen.js';
+import { SECTION_LIBRARY, KINDS, FONTS, el, make3D } from './sitegen.js';
 
 const COLORS = {
   red: '#ef4444', crimson: '#dc2626', orange: '#f97316', amber: '#f59e0b', yellow: '#facc15', gold: '#d4a017', lime: '#84cc16', green: '#16a34a',
@@ -39,6 +39,7 @@ export const HELP = `Here are things you can type (no AI key needed):
 • **use font Poppins** / **rounded buttons** / **bigger title**
 • **add a pricing section** / **remove the gallery** / **add a button "Call us"**
 • **moving gradient background** / **parallax** / **floating bubbles**
+• **make it 3D** / **add a 3D model** / **3D tilt cards** / **3D grid floor** / **3D scroll**
 • **undo** · **help**
 Connect an AI (⚙) to describe anything else in your own words.`;
 
@@ -90,6 +91,41 @@ export function runCommand(site, text, ctx = {}) {
   const t = lower(text).trim();
   if (!t) return { changed: false, reply: '' };
   if (/^(help|\?|what can you do|commands)/.test(t)) return { changed: false, reply: HELP };
+
+  // ---------- 3D ----------
+  if (/\b(3d|3-d|three ?d)\b/.test(t)) {
+    if (/\b(model|object|product|viewer|glb)\b/.test(t) && /\b(add|insert|put|show)\b/.test(t)) {
+      const sel = ctx.selectedId && site.sections.find((s) => s.id === ctx.selectedId || s.elements.some((e) => e.id === ctx.selectedId));
+      const named = findTargets(site, t.replace(/\b(model|object|product)\b/g, ''), null).sections.filter((s) => s.type !== 'navbar');
+      const target = sel || (named.length && named.length < site.sections.length ? named[0] : null) || site.sections.find((s) => s.type === 'hero') || site.sections[0];
+      const e = el('model3d', { src: '', emoji: site.emoji || '⭐', autoRotate: true, ar: true }, { col: 1 }, { in: 'zoom-in', dur: 1.1 });
+      target.elements.push(e);
+      return { changed: true, reply: `Added a 3D model to ${names([target])}. Select it → Edit → upload your .glb file (until then it shows a spinning 3D badge).`, select: e.id };
+    }
+    if (/\b(grid|floor|synthwave|retro)\b/.test(t)) {
+      let { sections } = findTargets(site, t, ctx.selectedId); if (!sections.length) sections = site.sections.filter((s) => s.type === 'hero');
+      sections.forEach((s) => { s.anim = { ...s.anim, bgEffect: '3d-grid' }; });
+      return { changed: true, reply: `Added a moving 3D grid floor to ${names(sections)}.` };
+    }
+    if (/\b(tilt|hover|follow)\b/.test(t)) {
+      const { elements } = targetsOrAll(site, t, ctx);
+      const list = elements.filter((e) => ['card', 'quote', 'price', 'image', 'video', 'model3d', 'button'].includes(e.kind));
+      list.forEach((e) => { e.anim = { ...e.anim, hover: 'tilt3d' }; });
+      return { changed: true, reply: `${describe(list.length, 'element')} now tilt in 3D following your finger/mouse.` };
+    }
+    if (/\b(flip|rise|entrance|appear)\b/.test(t)) {
+      const { elements } = targetsOrAll(site, t, ctx);
+      const kind = /rise/.test(t) ? 'rise-3d' : 'flip-3d';
+      elements.forEach((e) => { e.anim = { ...e.anim, in: kind, dur: e.anim?.dur || 0.9 }; });
+      return { changed: true, reply: `Added a ${kind === 'rise-3d' ? '3D rise' : '3D flip'} entrance to ${describe(elements.length, 'element')}.` };
+    }
+    if (/\bscroll/.test(t)) {
+      site.sections.forEach((s) => { if (s.type !== 'navbar' && s.type !== 'footer') s.anim = { ...s.anim, scroll3d: true }; });
+      return { changed: true, reply: 'Sections now tilt into view in 3D as you scroll.' };
+    }
+    make3D(site);
+    return { changed: true, reply: '🧊 Made the website 3D: a rotating 3D model in the hero (upload your own .glb to replace the badge), a moving 3D grid floor, 3D rise/flip entrances, cards that tilt in 3D under your finger, and sections that tilt into view while scrolling. Press ▶ Play.' };
+  }
 
   // ---------- remove animations ----------
   if (/(remove|stop|no|disable|turn off|clear)\b.*\banimation/.test(t) || /\bstatic\b/.test(t)) {

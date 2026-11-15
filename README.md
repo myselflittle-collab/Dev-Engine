@@ -24,6 +24,7 @@ No API key is needed for the builder, the design assistant or the app templates.
 - Upload **photos and videos** from your iPad/phone, or paste YouTube links
 - Add sections (hero, services, gallery, video, pricing, testimonials, contact form, map, footer, free-drag canvas) and elements (text, buttons, images, videos, cards, shapes, emoji…)
 - **Animations:** 12 entrance effects (slide, zoom, bounce, flip, blur, typewriter…), hover effects, looping effects (pulse, float, spin, heartbeat…), background effects (moving gradient, parallax, slow-zoom, floating bubbles), timing and delays, one-click presets
+- **3D:** say *“make a 3D website…”* or *“make it 3D”* → rotating 3D product in the hero, upload your own **.glb 3D models** (drag to rotate, pinch to zoom, **View in your room** with AR on iPhone/iPad), 3D flip/rise entrances, cards that tilt in 3D under your finger, a moving 3D grid floor and sections that tilt into view while scrolling
 - **🤖 Design assistant (works offline):** *“animate the hero with bounce”*, *“make buttons pulse”*, *“dark mode”*, *“change title to "Fresh Cakes"”*, *“add a pricing section”*, *“make it faster”*, *“undo”*…
 - Desktop / tablet / phone preview, undo/redo, layers, themes and Google Fonts
 - **Publish:** full-screen preview, GitHub Pages, ZIP, single HTML file, or open as code

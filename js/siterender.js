@@ -2,11 +2,13 @@
 
 export const ENTRANCES = {
   none: 'None', fade: 'Fade in', 'fade-up': 'Slide up', 'fade-down': 'Slide down', 'from-left': 'From left', 'from-right': 'From right',
-  'zoom-in': 'Zoom in', 'zoom-out': 'Zoom out', flip: 'Flip', 'bounce-in': 'Bounce in', 'rotate-in': 'Rotate in', 'blur-in': 'Blur in', typewriter: 'Typewriter',
+  'zoom-in': 'Zoom in', 'zoom-out': 'Zoom out', flip: 'Flip', 'bounce-in': 'Bounce in', 'rotate-in': 'Rotate in', 'blur-in': 'Blur in', typewriter: 'Typewriter', 'flip-3d': '3D flip', 'rise-3d': '3D rise',
 };
-export const HOVERS = { none: 'None', grow: 'Grow', lift: 'Lift', glow: 'Glow', tilt: 'Tilt', shake: 'Shake', shrink: 'Shrink' };
+export const HOVERS = { none: 'None', grow: 'Grow', lift: 'Lift', glow: 'Glow', tilt: 'Tilt', tilt3d: '3D tilt (follows finger)', shake: 'Shake', shrink: 'Shrink' };
 export const LOOPS = { none: 'None', pulse: 'Pulse', float: 'Float', spin: 'Spin', wiggle: 'Wiggle', bounce: 'Bounce', heartbeat: 'Heartbeat', glow: 'Glow pulse' };
-export const BG_EFFECTS = { none: 'None', 'gradient-shift': 'Moving gradient', parallax: 'Parallax image', 'ken-burns': 'Slow zoom image', bubbles: 'Floating bubbles' };
+export const BG_EFFECTS = { none: 'None', 'gradient-shift': 'Moving gradient', parallax: 'Parallax image', 'ken-burns': 'Slow zoom image', bubbles: 'Floating bubbles', '3d-grid': '3D grid floor' };
+export const MODEL_VIEWER_URL = 'https://cdn.jsdelivr.net/npm/@google/model-viewer@4.4.0/dist/model-viewer.min.js';
+export const uses3DModel = (site) => site.sections.some((s) => s.elements.some((e) => e.kind === 'model3d' && e.props.src));
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const txt = (s) => esc(s).replace(/\n/g, '<br>');
@@ -91,6 +93,12 @@ export function renderSite(site, opts = {}) {
       case 'social': return `<div ${attr}>${(p.links || []).map((l) => `<a href="${esc(l.href || '#')}" target="_blank" rel="noopener">${esc(l.icon)}</a>`).join('')}</div>`;
       case 'divider': return `<hr ${attr}>`;
       case 'spacer': return `<div ${attr}></div>`;
+      case 'model3d': {
+        const src = resolve(p.src);
+        if (src) return `<model-viewer ${attr} src="${esc(src)}" alt="${esc(p.alt || '3D model')}"${p.autoRotate !== false ? ' auto-rotate' : ''}${ed ? '' : ' camera-controls touch-action="pan-y"'}${p.ar !== false && !ed ? ' ar ar-modes="webxr scene-viewer quick-look"' : ''} shadow-intensity="1" exposure="1.1" interaction-prompt="none"></model-viewer>`;
+        const layers = Array.from({ length: 10 }, (_, i) => `<i style="transform:translateZ(${(i - 5) * 2}px)"></i>`).join('');
+        return `<div ${attr.replace('class="', 'class="css3d ')}><div class="stage3d${p.autoRotate !== false ? ' spinning' : ''}"><div class="coin">${layers}<b class="f">${esc(p.emoji || '⭐')}</b><b class="bk">${esc(p.emoji || '⭐')}</b></div><div class="shadow3d"></div></div>${ed ? '<span class="hint3d">Tap → Edit → Upload a .glb 3D model</span>' : ''}</div>`;
+      }
       case 'map': return `<div ${attr.replace('class="', 'class="vwrap ')}><iframe loading="lazy" src="https://maps.google.com/maps?q=${encodeURIComponent(p.query || '')}&output=embed"></iframe></div>`;
       case 'nav': return `<nav ${attr}><a class="brand" href="#hero" data-edit="brand">${esc(p.brand)}</a><div class="links">${(p.links || []).map((l) => `<a href="${esc(l.href)}">${esc(l.text)}</a>`).join('')}</div>${p.cta ? `<a class="btn btn-solid" href="${esc(p.ctaHref || '#contact')}">${esc(p.cta)}</a>` : ''}<button class="burger" aria-label="Menu">☰</button></nav>`;
       default: return `<div ${attr}>${esc(p.text || '')}</div>`;
@@ -126,9 +134,10 @@ export function renderSite(site, opts = {}) {
     if (st.align) css.push(`text-align:${st.align}`);
     const anchor = ANCHOR[s.type] && !seen.has(ANCHOR[s.type]) ? ANCHOR[s.type] : s.id;
     seen.add(anchor);
-    const cls = ['sec', `t-${s.type}`, `lay-${s.layout}`, st.sticky ? 'sticky' : '', st.shadow ? 'shadowed' : '', fx !== 'none' ? 'fx-' + fx : '', ed && opts.selected === s.id ? 'sel-sec' : '', st.align === 'center' ? 'center' : ''].filter(Boolean).join(' ');
+    const cls = ['sec', `t-${s.type}`, `lay-${s.layout}`, s.anim && s.anim.scroll3d ? 'sc-3d' : '', st.sticky ? 'sticky' : '', st.shadow ? 'shadowed' : '', fx !== 'none' ? 'fx-' + fx : '', ed && opts.selected === s.id ? 'sel-sec' : '', st.align === 'center' ? 'center' : ''].filter(Boolean).join(' ');
     let fxLayer = '';
     if (fx === 'ken-burns' && bgImg) fxLayer = `<div class="kb" style="background-image:url('${bgImg}')"></div><div class="kb-ov"></div>`;
+    if (fx === '3d-grid') fxLayer = '<div class="grid3d"></div>';
     if (fx === 'bubbles') fxLayer = `<div class="bubbles">${Array.from({ length: 10 }, (_, i) => `<span style="left:${(i * 37) % 100}%;--s:${20 + ((i * 13) % 50)}px;--t:${8 + (i % 5) * 3}s;--dl:${-i * 1.7}s"></span>`).join('')}</div>`;
     // group consecutive buttons into a row
     let inner = ''; let row = [];
@@ -162,7 +171,7 @@ export function renderSite(site, opts = {}) {
   let css = `:root,.site{--primary:${t.primary};--accent:${t.accent};--bg:${t.bg};--text:${t.text};--radius:${t.radius ?? 12}px;--font:'${t.font}',system-ui,sans-serif;--hfont:'${t.headingFont || t.font}',system-ui,sans-serif;--bg-alt:color-mix(in srgb,var(--primary) ${dark ? 10 : 5}%,var(--bg));--card:${dark ? 'rgba(255,255,255,.06)' : '#ffffff'};--line:${dark ? 'rgba(255,255,255,.12)' : 'rgba(0,0,0,.08)'}}
 ${BASE_CSS}`;
   if (mode === 'export') css = css.replace(/@container\s*\(/g, '@media (').replace(/\.site\{container-type:inline-size;?/g, '.site{');
-  return { body: `<div class="site${ed ? ' editing' : ''}">${body}</div>`, css, js: `(${runtime.toString()})(document);`, fonts: fontsUrl(site) };
+  return { body: `<div class="site${ed ? ' editing' : ''}">${body}</div>`, css, js: `(${runtime.toString()})(document);`, fonts: fontsUrl(site), needs3d: uses3DModel(site) };
 }
 
 export function isDark(hex) {
@@ -185,7 +194,7 @@ export function exportDocument(site, resolve) {
 <meta name="description" content="${esc(site.seo?.description || '')}">
 ${r.fonts ? `<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>\n<link rel="stylesheet" href="${r.fonts}">` : ''}
 <link rel="stylesheet" href="style.css">
-</head>
+${r.needs3d ? `<script type="module" src="${MODEL_VIEWER_URL}"></script>\n` : ''}</head>
 <body>
 ${r.body}
 <script src="script.js"></script>
@@ -225,6 +234,22 @@ export function runtime(doc, scrollRoot) {
     }
     f.querySelector('.thanks').hidden = false; f.reset();
   }));
+  // 3D tilt that follows the pointer / finger
+  root.querySelectorAll('.h-tilt3d').forEach((el) => {
+    const move = (e) => { const r = el.getBoundingClientRect(); const x = (e.clientX - r.left) / r.width - 0.5; const y = (e.clientY - r.top) / r.height - 0.5; el.style.transform = `perspective(700px) rotateY(${x * 18}deg) rotateX(${-y * 18}deg) translateZ(12px)`; };
+    el.addEventListener('pointermove', move); el.addEventListener('pointerleave', () => { el.style.transform = ''; });
+  });
+  // scroll-driven 3D sections
+  const sc3d = root.querySelectorAll('.sc-3d');
+  if (sc3d.length) {
+    const sr = scrollRoot || window;
+    const upd = () => {
+      const top0 = scrollRoot ? scrollRoot.getBoundingClientRect().top : 0;
+      const vh = scrollRoot ? scrollRoot.clientHeight : window.innerHeight;
+      sc3d.forEach((s) => { const t = s.getBoundingClientRect().top - top0; const p = Math.max(0, Math.min(1, (vh - t) / (vh * 0.55))); s.style.setProperty('--p', p.toFixed(3)); });
+    };
+    sr.addEventListener('scroll', upd, { passive: true }); upd();
+  }
   const parallax = root.querySelectorAll('.fx-parallax');
   if (parallax.length) {
     const sc = scrollRoot || window;
@@ -282,7 +307,9 @@ html{scroll-behavior:smooth}body{margin:0}
 /* entrance animations */
 .a-in{opacity:0}.a-in.in{animation:var(--an,deFade) var(--d,.8s) cubic-bezier(.2,.75,.25,1) var(--dl,0s) both}
 [data-in=fade]{--an:deFade}[data-in=fade-up]{--an:deUp}[data-in=fade-down]{--an:deDown}[data-in=from-left]{--an:deLeft}[data-in=from-right]{--an:deRight}
-[data-in=zoom-in]{--an:deZoomIn}[data-in=zoom-out]{--an:deZoomOut}[data-in=flip]{--an:deFlip}[data-in=bounce-in]{--an:deBounceIn}[data-in=rotate-in]{--an:deRotate}[data-in=blur-in]{--an:deBlur}[data-in=typewriter]{--an:deFade}
+[data-in=zoom-in]{--an:deZoomIn}[data-in=zoom-out]{--an:deZoomOut}[data-in=flip]{--an:deFlip}[data-in=bounce-in]{--an:deBounceIn}[data-in=rotate-in]{--an:deRotate}[data-in=blur-in]{--an:deBlur}[data-in=typewriter]{--an:deFade}[data-in=flip-3d]{--an:deFlip3d}[data-in=rise-3d]{--an:deRise3d}
+@keyframes deFlip3d{from{opacity:0;transform:perspective(900px) rotateY(-80deg) translateZ(-80px)}to{opacity:1;transform:none}}
+@keyframes deRise3d{from{opacity:0;transform:perspective(900px) rotateX(55deg) translateY(70px) translateZ(-120px)}to{opacity:1;transform:none}}
 @keyframes deFade{from{opacity:0}to{opacity:1}}
 @keyframes deUp{from{opacity:0;transform:translateY(50px)}to{opacity:1;transform:none}}
 @keyframes deDown{from{opacity:0;transform:translateY(-50px)}to{opacity:1;transform:none}}
@@ -307,6 +334,22 @@ html{scroll-behavior:smooth}body{margin:0}
 @keyframes deBounce{0%,100%{transform:translateY(0)}40%{transform:translateY(-22px)}60%{transform:translateY(-10px)}}
 @keyframes deHeart{0%,100%{transform:scale(1)}15%{transform:scale(1.15)}30%{transform:scale(1)}45%{transform:scale(1.1)}}
 @keyframes deGlow{50%{box-shadow:0 0 30px 6px color-mix(in srgb,var(--primary) 55%,transparent)}}
+/* 3D */
+.h-tilt3d{transition:transform .2s ease-out;transform-style:preserve-3d;will-change:transform}
+.sc-3d .wrap{transform:perspective(1200px) rotateX(calc((1 - var(--p,1)) * 20deg)) translateY(calc((1 - var(--p,1)) * 70px)) scale(calc(.9 + var(--p,1) * .1));opacity:calc(.25 + var(--p,1) * .75);transform-origin:50% 0;will-change:transform,opacity}
+.grid3d{position:absolute;left:-50%;right:-50%;bottom:-2%;height:58%;pointer-events:none;background-image:linear-gradient(color-mix(in srgb,var(--primary) 55%,transparent) 1.5px,transparent 1.5px),linear-gradient(90deg,color-mix(in srgb,var(--primary) 55%,transparent) 1.5px,transparent 1.5px);background-size:64px 64px;transform:perspective(420px) rotateX(62deg);transform-origin:50% 100%;-webkit-mask-image:linear-gradient(to top,#000 10%,transparent 90%);mask-image:linear-gradient(to top,#000 10%,transparent 90%);animation:deGridMove 2.4s linear infinite}
+@keyframes deGridMove{to{background-position:0 64px,0 64px}}
+model-viewer.k-model3d{width:100%;height:clamp(300px,42cqi,520px);display:block;background:transparent;--poster-color:transparent}
+.css3d{display:grid;place-items:center;min-height:clamp(260px,36cqi,440px);perspective:900px;position:relative}
+.stage3d{position:relative;width:clamp(160px,22cqi,260px);aspect-ratio:1;transform-style:preserve-3d}
+.stage3d.spinning .coin{animation:deSpin3d 7s linear infinite}
+.coin{position:absolute;inset:0;transform-style:preserve-3d;transform:rotateX(-12deg)}
+.coin i{position:absolute;inset:0;border-radius:50%;background:linear-gradient(135deg,color-mix(in srgb,var(--primary) 85%,#fff),color-mix(in srgb,var(--primary) 70%,#000))}
+.coin b{position:absolute;inset:0;border-radius:50%;display:grid;place-items:center;font-size:clamp(70px,10cqi,120px);background:radial-gradient(circle at 30% 25%,#fff8,transparent 45%),linear-gradient(135deg,color-mix(in srgb,var(--primary) 40%,#fff),var(--primary));box-shadow:inset 0 0 0 6px color-mix(in srgb,var(--accent) 80%,#fff);backface-visibility:hidden}
+.coin b.f{transform:translateZ(11px)}.coin b.bk{transform:rotateY(180deg) translateZ(11px)}
+.shadow3d{position:absolute;left:10%;right:10%;bottom:-22%;height:14%;border-radius:50%;background:radial-gradient(rgba(0,0,0,.35),transparent 70%);transform:rotateX(80deg);animation:dePulse 3.5s ease-in-out infinite}
+@keyframes deSpin3d{from{transform:rotateX(-12deg) rotateY(0)}to{transform:rotateX(-12deg) rotateY(360deg)}}
+.hint3d{position:absolute;bottom:4px;font-size:12px;opacity:.6}
 /* section background effects */
 .fx-gradient-shift{background-size:300% 300%!important;animation:deGrad 12s ease infinite}
 @keyframes deGrad{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
@@ -316,7 +359,7 @@ html{scroll-behavior:smooth}body{margin:0}
 .fx-ken-burns{color:#fff}
 .bubbles{position:absolute;inset:0;pointer-events:none}.bubbles span{position:absolute;bottom:-80px;width:var(--s);height:var(--s);border-radius:50%;background:color-mix(in srgb,var(--accent) 35%,transparent);animation:deRise var(--t) linear var(--dl) infinite}
 @keyframes deRise{to{transform:translateY(-130cqh) translateX(30px);opacity:0}}
-@media (prefers-reduced-motion:reduce){.a-in{opacity:1!important;animation:none!important}.l-pulse,.l-float,.l-spin,.l-wiggle,.l-bounce,.l-heartbeat,.l-glow,.fx-gradient-shift,.kb,.bubbles span{animation:none!important}}
+@media (prefers-reduced-motion:reduce){.coin,.grid3d{animation:none!important}.a-in{opacity:1!important;animation:none!important}.l-pulse,.l-float,.l-spin,.l-wiggle,.l-bounce,.l-heartbeat,.l-glow,.fx-gradient-shift,.kb,.bubbles span{animation:none!important}}
 /* responsive */
 @container (max-width:760px){
 .lay-split .wrap,.lay-grid2 .wrap,.lay-grid3 .wrap,.lay-grid4 .wrap{grid-template-columns:1fr}
@@ -332,7 +375,7 @@ html{scroll-behavior:smooth}body{margin:0}
 .editing .el:hover{outline:1px dashed color-mix(in srgb,var(--primary) 70%,#fff);outline-offset:3px;cursor:pointer}
 .editing .sel{outline:2px solid #0079f2!important;outline-offset:3px;z-index:5}
 .editing .sel-sec{box-shadow:inset 0 0 0 3px #f26207}
-.editing .vwrap iframe{pointer-events:none}
+.editing .vwrap iframe,.editing model-viewer{pointer-events:none}
 .editing a{pointer-events:auto}
 .editing [contenteditable=true]{outline:2px solid #f26207;outline-offset:4px;cursor:text}
 .editing .rz{position:absolute;right:-9px;bottom:-9px;width:18px;height:18px;border-radius:50%;background:#0079f2;border:3px solid #fff;cursor:nwse-resize;touch-action:none}
