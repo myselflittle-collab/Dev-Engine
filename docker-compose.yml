@@ -1,0 +1,16 @@
+services:
+  dev-engine:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    ports:
+      - "3001:3001"
+    environment:
+      # Set a secret token and use http://localhost:3001?token=<it> as the Backend URL
+      - DEVENGINE_TOKEN=${DEVENGINE_TOKEN:-change-me}
+    volumes:
+      - workspaces:/home/runner/workspaces
+    mem_limit: 2g
+    cpus: 2
+volumes:
+  workspaces:

@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0e1525" />
+  <meta name="description" content="Dev Engine — build, run, test and fix software, websites and web apps right in your browser." />
+  <title>Dev Engine — Build, Test & Fix in your browser</title>
+  <link rel="icon" href="assets/logo.svg" type="image/svg+xml" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.css" />
+  <link rel="stylesheet" href="css/app.css" />
+</head>
+<body>
+  <!-- ================= HOME / DASHBOARD ================= -->
+  <div id="home" class="home">
+    <header class="home-top">
+      <div class="brand"><img src="assets/logo.svg" alt="" width="28" height="28" /><span>Dev Engine</span></div>
+      <div class="home-search"><input id="home-search" type="search" placeholder="Search your Repls…" /></div>
+      <div class="home-actions">
+        <button class="btn ghost" id="btn-import-zip" title="Import a .zip">⬆ Import</button>
+        <button class="btn ghost" id="btn-import-gh" title="Import from GitHub">🐙 GitHub</button>
+        <button class="btn icon" id="btn-home-settings" title="Settings">⚙</button>
+      </div>
+    </header>
+    <main class="home-main">
+      <section class="hero">
+        <h1>What will you build today?</h1>
+        <p>Write code, run it instantly, test it, and let the AI Agent fix the bugs — all in your browser.</p>
+        <div class="hero-create">
+          <input id="new-name" placeholder="Name your Repl (e.g. my-portfolio)" maxlength="60" />
+          <button class="btn primary big" id="btn-create">+ Create Repl</button>
+        </div>
+      </section>
+      <section>
+        <h2>Templates</h2>
+        <div id="templates" class="template-grid"></div>
+      </section>
+      <section>
+        <div class="row-between"><h2>My Repls</h2><span id="repl-count" class="muted"></span></div>
+        <div id="repl-list" class="repl-list"></div>
+      </section>
+    </main>
+    <input type="file" id="zip-input" accept=".zip" hidden />
+  </div>
+
+  <!-- ================= WORKSPACE ================= -->
+  <div id="workspace" class="workspace" hidden>
+    <header class="topbar">
+      <div class="tb-left">
+        <button class="btn icon" id="btn-home" title="Home"><img src="assets/logo.svg" alt="Home" width="22" height="22" /></button>
+        <input id="repl-name" class="repl-name" spellcheck="false" />
+        <span id="runtime-badge" class="badge"></span>
+      </div>
+      <div class="tb-center">
+        <button class="run-btn" id="btn-run" title="Run (Ctrl+Enter)"><span class="run-ico">▶</span><span class="run-label">Run</span></button>
+      </div>
+      <div class="tb-right">
+        <button class="btn ghost hide-sm" id="btn-test" title="Run tests (Ctrl+Shift+T)">🧪 Test</button>
+        <button class="btn ghost hide-sm" id="btn-agent-top" title="AI Agent">✨ Agent</button>
+        <button class="btn ghost" id="btn-share" title="Share">🔗<span class="hide-sm"> Share</span></button>
+        <button class="btn primary hide-sm" id="btn-deploy" title="Deploy / Export">🚀 Deploy</button>
+        <button class="btn icon" id="btn-more" title="More">⋯</button>
+      </div>
+    </header>
+
+    <div class="ws-body" id="ws-body">
+      <nav class="rail" id="rail">
+        <button data-panel="files" class="active" title="Files">📁</button>
+        <button data-panel="search" title="Search">🔍</button>
+        <button data-panel="packages" title="Packages">📦</button>
+        <button data-panel="secrets" title="Secrets">🔒</button>
+        <button data-panel="checkpoints" title="Checkpoints / History">🕘</button>
+        <button data-panel="settings" title="Settings">⚙</button>
+      </nav>
+      <aside class="sidepanel" id="sidepanel"></aside>
+      <div class="resizer" data-resize="side"></div>
+
+      <section class="editor-area" id="editor-area">
+        <div class="tabs" id="tabs"></div>
+        <div class="editor-wrap">
+          <div id="editor"></div>
+          <div id="editor-empty" class="editor-empty" hidden>
+            <img src="assets/logo.svg" width="64" height="64" alt="" />
+            <p>Open a file from the Files panel</p>
+            <p class="muted small">Ctrl+Enter run · Ctrl+S save · Ctrl+P quick open · Ctrl+Shift+T tests</p>
+          </div>
+        </div>
+        <div class="statusbar" id="statusbar">
+          <span id="sb-saved">Saved</span>
+          <span id="sb-backend" class="muted"></span>
+          <span class="grow"></span>
+          <span id="sb-problems" class="sb-btn">⛔ 0 ⚠ 0</span>
+          <span id="sb-pos">Ln 1, Col 1</span>
+          <span id="sb-lang"></span>
+        </div>
+      </section>
+      <div class="resizer" data-resize="right"></div>
+
+      <section class="output-area" id="output-area">
+        <div class="otabs" id="otabs">
+          <button data-out="webview">🌐 Webview</button>
+          <button data-out="console" class="active">▤ Console</button>
+          <button data-out="shell">💲 Shell</button>
+          <button data-out="tests">🧪 Tests <span id="test-badge" class="pill" hidden></span></button>
+          <button data-out="problems">⛔ Problems <span id="problem-badge" class="pill red" hidden></span></button>
+          <button data-out="agent">✨ Agent</button>
+        </div>
+        <div class="opanes">
+          <div class="opane" data-pane="webview">
+            <div class="webbar">
+              <button class="btn icon sm" id="wv-reload" title="Reload">⟳</button>
+              <input id="wv-url" class="wv-url" spellcheck="false" />
+              <button class="btn icon sm" id="wv-devices" title="Toggle mobile size">📱</button>
+              <button class="btn icon sm" id="wv-open" title="Open in new tab">↗</button>
+            </div>
+            <div class="webframe-wrap" id="webframe-wrap"><div class="wv-placeholder">Press <b>Run</b> to see your website here.</div></div>
+          </div>
+          <div class="opane active" data-pane="console">
+            <div class="pane-bar">
+              <span class="muted small" id="console-status">Ready</span><span class="grow"></span>
+              <button class="btn icon sm" id="console-clear" title="Clear console">🧹</button>
+            </div>
+            <div class="console" id="console"></div>
+            <form class="console-input" id="console-form">
+              <span>›</span><input id="console-eval" placeholder="Evaluate JavaScript in the running app…" autocomplete="off" />
+            </form>
+          </div>
+          <div class="opane" data-pane="shell"><div id="terminal" class="terminal"></div></div>
+          <div class="opane" data-pane="tests">
+            <div class="pane-bar">
+              <button class="btn sm primary" id="tests-run">▶ Run tests</button>
+              <span class="muted small" id="tests-summary">No test run yet</span><span class="grow"></span>
+              <button class="btn sm" id="tests-fix" hidden>✨ Fix failing tests</button>
+            </div>
+            <div class="tests" id="tests"></div>
+          </div>
+          <div class="opane" data-pane="problems">
+            <div class="pane-bar">
+              <button class="btn sm" id="problems-check">🔎 Check code</button>
+              <span class="muted small" id="problems-summary"></span><span class="grow"></span>
+              <button class="btn sm" id="problems-fix" hidden>✨ Fix all with Agent</button>
+            </div>
+            <div class="problems" id="problems"></div>
+          </div>
+          <div class="opane" data-pane="agent">
+            <div class="agent" id="agent">
+              <div class="agent-msgs" id="agent-msgs"></div>
+              <div class="agent-quick">
+                <button class="chip" data-q="autofix">🛠 Build → Test → Fix (auto)</button>
+                <button class="chip" data-q="explain">💡 Explain this file</button>
+                <button class="chip" data-q="tests">🧪 Write tests</button>
+                <button class="chip" data-q="improve">✨ Improve code</button>
+              </div>
+              <form class="agent-input" id="agent-form">
+                <textarea id="agent-text" rows="2" placeholder="Ask the Agent to build a feature or fix a bug…"></textarea>
+                <button class="btn primary" id="agent-send">Send</button>
+              </form>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <nav class="mobile-nav" id="mobile-nav">
+      <button data-m="side">📁<span>Files</span></button>
+      <button data-m="editor" class="active">✎<span>Code</span></button>
+      <button data-m="output">▤<span>Output</span></button>
+      <button data-m="agent">✨<span>Agent</span></button>
+    </nav>
+  </div>
+
+  <div id="modal-root"></div>
+  <div id="menu-root"></div>
+  <div id="toasts" class="toasts"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/loader.js"></script>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

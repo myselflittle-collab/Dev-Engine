@@ -1,0 +1,13 @@
+{
+  "name": "dev-engine-server",
+  "version": "1.0.0",
+  "description": "Optional backend for Dev Engine: real Linux shell and any-language runner over WebSocket.",
+  "type": "module",
+  "bin": { "dev-engine-server": "server.js" },
+  "main": "server.js",
+  "scripts": { "start": "node server.js", "test": "node --test test/*.test.js" },
+  "engines": { "node": ">=18" },
+  "dependencies": { "ws": "^8.18.0" },
+  "optionalDependencies": { "node-pty": "^1.0.0" },
+  "license": "MIT"
+}

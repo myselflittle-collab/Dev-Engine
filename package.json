@@ -1,0 +1,13 @@
+{
+  "name": "dev-engine",
+  "version": "1.0.0",
+  "description": "Dev Engine — a Replit-style browser IDE to build, run, test and fix software, websites and web apps.",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "npx -y http-server . -p 8080 -c-1",
+    "test": "node --test tests/*.test.mjs",
+    "server": "cd server && npm install && npm start"
+  },
+  "license": "MIT"
+}
