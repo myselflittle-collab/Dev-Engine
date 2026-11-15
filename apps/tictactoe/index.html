@@ -1,0 +1,11 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>{{APP_NAME}}</title><link rel="stylesheet" href="style.css"></head>
+<body>
+<main class="app small-app">
+  <h1>❌⭕ {{APP_NAME}}</h1><p class="sub" id="status">Your turn (X)</p>
+  <div class="card"><div class="board" id="board"></div><div class="row" style="margin-top:14px"><select id="mode"><option value="ai">vs Computer</option><option value="2p">2 players</option></select><button id="reset">New game</button></div><p class="muted small center" id="score">X 0 · O 0 · Draw 0</p></div>
+</main>
+<script type="module" src="app.js"></script>
+</body>
+</html>

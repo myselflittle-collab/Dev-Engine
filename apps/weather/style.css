@@ -1,0 +1,4 @@
+@import url('_base.css');
+.now { display: flex; align-items: center; gap: 18px; } .now .big { font-size: 64px; } .now .t { font-size: 48px; font-weight: 800; }
+.days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin-top: 10px; text-align: center; font-size: 13px; } .days div { background: #0b1222; border-radius: 10px; padding: 8px 2px; } .days .ic { font-size: 24px; display: block; }
+@media (max-width: 480px) { .days { grid-template-columns: repeat(4, 1fr); } }

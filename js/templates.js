@@ -298,7 +298,7 @@ loop();
     files: { 'main.sh': `#!/bin/bash\necho "Hello from Bash!"\nfor i in 1 2 3; do echo "Count $i"; done\n`, '.devengine': `run = "bash main.sh"\n` },
   },
   {
-    id: 'blank', name: 'Blank Repl', icon: '⬜', runtime: 'web', color: '#64748b', desc: 'Start from nothing',
+    id: 'blank', name: 'Blank project', icon: '⬜', runtime: 'web', color: '#64748b', desc: 'Start from nothing',
     files: { 'index.html': `<!DOCTYPE html>\n<html>\n<body>\n  <h1>Blank</h1>\n</body>\n</html>\n` },
   },
 ];

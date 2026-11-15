@@ -1,0 +1,7 @@
+@import url('_base.css');
+.calc { max-width: 380px; }
+.display { text-align: right; padding: 10px 6px 16px; } #expr { min-height: 22px; word-break: break-all; } #out { font-size: 44px; font-weight: 700; word-break: break-all; }
+.keys { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.keys button { height: 64px; font-size: 22px; background: #273449; border-radius: 16px; }
+.keys button.op { background: var(--primary); } .keys button.eq { background: var(--ok); } .keys button.fn { background: #475569; }
+#history { margin-top: 14px; line-height: 1.8; max-height: 120px; overflow: auto; }

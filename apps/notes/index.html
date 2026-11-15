@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>{{APP_NAME}}</title><link rel="stylesheet" href="style.css"></head>
+<body>
+<main class="app wide">
+  <h1>📝 {{APP_NAME}}</h1>
+  <div class="layout">
+    <aside class="card side"><div class="row"><input id="q" placeholder="Search…"><button id="new">＋</button></div><ul id="list"></ul></aside>
+    <section class="card editor"><input id="title" placeholder="Title"><textarea id="body" placeholder="Start writing…"></textarea><div class="row"><span class="muted small" id="saved"></span><button class="danger" id="del" style="flex:0 0 auto">Delete</button></div></section>
+  </div>
+</main>
+<script type="module" src="app.js"></script>
+</body>
+</html>

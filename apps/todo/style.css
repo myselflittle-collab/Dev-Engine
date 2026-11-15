@@ -1,0 +1,11 @@
+@import url('_base.css');
+.filters { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; } .filters button { background: var(--card); border: 1px solid var(--line); padding: 7px 14px; } .filters button.on { background: var(--primary); }
+#clear { margin-left: auto; }
+.list { list-style: none; padding: 6px; min-height: 60px; }
+.list li { display: flex; align-items: center; gap: 10px; padding: 12px; border-radius: 10px; animation: pop .25s ease; }
+.list li + li { border-top: 1px solid var(--line); }
+.list li.done .t { text-decoration: line-through; color: var(--muted); }
+.list .t { flex: 1; word-break: break-word; } .list input[type=checkbox] { width: 22px; height: 22px; accent-color: var(--ok); flex: none; }
+.list .del { background: transparent; padding: 4px 8px; color: var(--muted); }
+.tag { font-size: 11px; padding: 2px 8px; border-radius: 99px; background: #334155; } .tag.high { background: #7f1d1d; } .tag.low { background: #14532d; }
+.empty { text-align: center; color: var(--muted); padding: 20px; }

@@ -10,13 +10,14 @@
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.css" />
   <link rel="stylesheet" href="css/app.css" />
+  <link rel="stylesheet" href="css/builder.css" />
 </head>
 <body>
   <!-- ================= HOME / DASHBOARD ================= -->
   <div id="home" class="home">
     <header class="home-top">
       <div class="brand"><img src="assets/logo.svg" alt="" width="28" height="28" /><span>Dev Engine</span></div>
-      <div class="home-search"><input id="home-search" type="search" placeholder="Search your Repls…" /></div>
+      <div class="home-search"><input id="home-search" type="search" placeholder="Search your projects…" /></div>
       <div class="home-actions">
         <button class="btn ghost" id="btn-import-zip" title="Import a .zip">⬆ Import</button>
         <button class="btn ghost" id="btn-import-gh" title="Import from GitHub">🐙 GitHub</button>
@@ -27,9 +28,23 @@
       <section class="hero">
         <h1>What will you build today?</h1>
         <p>Write code, run it instantly, test it, and let the AI Agent fix the bugs — all in your browser.</p>
+        <form class="ask" id="ask-form">
+          <textarea id="ask-text" rows="2" placeholder="Describe what you want to build… e.g. “Make a website for my pet clinic called PetHealer” or “Build a todo app”"></textarea>
+          <button class="btn primary big" id="ask-go">✨ Build</button>
+        </form>
+        <div class="ask-chips" id="ask-chips">
+          <button class="chip">Make a website for my pet clinic called PetHealer</button>
+          <button class="chip">Create a portfolio website</button>
+          <button class="chip">Make a website for my bakery</button>
+          <button class="chip">Build a todo app</button>
+          <button class="chip">Build an expense tracker</button>
+          <button class="chip">Make a snake game</button>
+          <button class="chip">Build a weather app</button>
+        </div>
         <div class="hero-create">
-          <input id="new-name" placeholder="Name your Repl (e.g. my-portfolio)" maxlength="60" />
-          <button class="btn primary big" id="btn-create">+ Create Repl</button>
+          <input id="new-name" placeholder="…or name a blank project and pick a template below" maxlength="60" />
+          <button class="btn big" id="btn-create">+ New project</button>
+          <button class="btn big" id="btn-connect-ai">🔌 Connect AI</button>
         </div>
       </section>
       <section>
@@ -37,7 +52,7 @@
         <div id="templates" class="template-grid"></div>
       </section>
       <section>
-        <div class="row-between"><h2>My Repls</h2><span id="repl-count" class="muted"></span></div>
+        <div class="row-between"><h2>My Projects</h2><span id="repl-count" class="muted"></span></div>
         <div id="repl-list" class="repl-list"></div>
       </section>
     </main>
@@ -167,6 +182,74 @@
       <button data-m="editor" class="active">✎<span>Code</span></button>
       <button data-m="output">▤<span>Output</span></button>
       <button data-m="agent">✨<span>Agent</span></button>
+    </nav>
+  </div>
+
+
+  <!-- ================= VISUAL WEBSITE BUILDER ================= -->
+  <div id="builder" class="builder" hidden>
+    <header class="bd-top">
+      <div class="bd-tl">
+        <button class="btn icon" id="bd-back" title="Home"><img src="assets/logo.svg" alt="Home" width="22" height="22" /></button>
+        <input id="bd-name" class="repl-name" spellcheck="false" />
+        <button class="btn icon" id="bd-undo" title="Undo (Ctrl+Z)">↶</button>
+        <button class="btn icon" id="bd-redo" title="Redo">↷</button>
+      </div>
+      <div class="bd-devices" id="bd-devices">
+        <button data-d="desktop" title="Desktop">🖥</button><button data-d="tablet" title="Tablet">📱</button><button data-d="mobile" title="Phone">📲</button>
+      </div>
+      <div class="bd-tr">
+        <button class="btn ghost" id="bd-play" title="Play animations">▶<span class="hide-sm"> Play</span></button>
+        <button class="btn ghost hide-sm" id="bd-preview" title="Full-screen preview">👁 Preview</button>
+        <button class="btn ghost hide-sm" id="bd-code" title="Open as code">&lt;/&gt; Code</button>
+        <button class="btn ghost" id="bd-ai" title="Connect an AI (optional)">⚙<span class="hide-sm"> AI</span></button>
+        <button class="btn primary" id="bd-publish">🚀<span class="hide-sm"> Publish</span></button>
+      </div>
+    </header>
+    <div class="bd-body">
+      <aside class="bd-left">
+        <div class="bd-tabs" id="bd-ltabs"><button data-t="add" class="active">➕ Add</button><button data-t="layers">☰ Layers</button><button data-t="media">🖼 Media</button></div>
+        <div class="bd-pbody" id="bd-left-body"></div>
+      </aside>
+      <main class="bd-canvas" id="bd-canvas">
+        <div id="bd-host" class="bd-host"></div>
+        <div id="bd-tools" class="bd-tools" hidden>
+          <span class="lbl"></span>
+          <button data-a="edit" title="Edit">✎</button><button data-a="anim" title="Animate">✨</button><button data-a="media" title="Media">🖼</button>
+          <button data-a="up" title="Move up">▲</button><button data-a="down" title="Move down">▼</button>
+          <button data-a="dup" title="Duplicate">⧉</button><button data-a="del" title="Delete">🗑</button>
+        </div>
+      </main>
+      <aside class="bd-right">
+        <div class="bd-tabs" id="bd-rtabs"><button data-t="edit" class="active">✎ Edit</button><button data-t="anim">✨ Animate</button><button data-t="chat">🤖 Assistant</button></div>
+        <div class="bd-pbody" id="bd-right-body"></div>
+        <div class="bd-chat" id="bd-chat" hidden>
+          <div class="bd-msgs" id="bd-msgs"></div>
+          <div class="bd-chips" id="bd-chips">
+            <button class="chip" data-q="make everything fade up one by one">✨ Animate all</button>
+            <button class="chip" data-q="make buttons pulse">💓 Pulsing buttons</button>
+            <button class="chip" data-q="typewriter effect on the hero title">⌨️ Typewriter title</button>
+            <button class="chip" data-q="add floating bubbles to the hero">🫧 Bubbles</button>
+            <button class="chip" data-q="images zoom on hover">🔍 Hover zoom</button>
+            <button class="chip" data-q="dark mode">🌙 Dark</button>
+            <button class="chip" data-q="help">❓ Help</button>
+          </div>
+          <form class="agent-input" id="bd-chat-form">
+            <textarea id="bd-chat-text" rows="2" placeholder="Tell me what to change… e.g. animate the hero with bounce"></textarea>
+            <button class="btn primary">Send</button>
+          </form>
+        </div>
+      </aside>
+      <div class="bd-scrim" id="bd-scrim"></div>
+    </div>
+    <nav class="bd-mnav" id="bd-mnav">
+      <button data-p="l-add">➕<span>Add</span></button>
+      <button data-p="l-layers">☰<span>Layers</span></button>
+      <button data-p="l-media">🖼<span>Media</span></button>
+      <button data-p="canvas" class="active">📄<span>Page</span></button>
+      <button data-p="r-edit">✎<span>Edit</span></button>
+      <button data-p="r-anim">✨<span>Animate</span></button>
+      <button data-p="r-chat">🤖<span>Chat</span></button>
     </nav>
   </div>
 

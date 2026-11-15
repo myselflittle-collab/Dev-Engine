@@ -1,0 +1,4 @@
+@import url('_base.css');
+.small-app { max-width: 440px; } .center { text-align: center; }
+canvas { width: 100%; aspect-ratio: 1; background: #0b1222; border-radius: 12px; touch-action: none; display: block; }
+.pad { display: grid; grid-template-columns: repeat(3, 64px); gap: 6px; justify-content: center; margin-top: 12px; } .pad button { height: 56px; font-size: 20px; background: #273449; }

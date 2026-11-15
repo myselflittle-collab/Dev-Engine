@@ -9,6 +9,10 @@ import { createShell } from './shell.js';
 import { chat, parseEdits, stripEdits, diffStats, projectContext, renderMarkdown } from './ai.js';
 import { Backend, defaultServerCommand } from './backend.js';
 import { importRepo, pushRepo } from './github.js';
+import { openBuilder, closeBuilder } from './builder.js';
+import { classify, loadApp, APPS } from './appgen.js';
+import { generateSite, KINDS } from './sitegen.js';
+import { AI_PROVIDERS, aiReady as aiReadyFor } from './ai.js';
 
 const MONACO_BASE = 'https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/';
 const SANDBOX = 'allow-scripts allow-modals allow-forms allow-popups allow-pointer-lock allow-downloads';
@@ -50,11 +54,18 @@ const backend = new Backend();
 
 async function route() {
   const h = location.hash;
-  let m = h.match(/^#\/repl\/([\w]+)/);
+  let m = h.match(/^#\/site\/([\w]+)/);
   if (m) {
     const p = store.loadProject(m[1]);
+    if (p && p.site) { if (S.project) closeWorkspace(true); return openBuilder(p, builderDeps); }
+    toast('Website not found', 'err'); location.hash = ''; return;
+  }
+  m = h.match(/^#\/repl\/([\w]+)/);
+  if (m) {
+    $('#builder').hidden = true;
+    const p = store.loadProject(m[1]);
     if (p) return openWorkspace(p);
-    toast('Repl not found', 'err');
+    toast('Project not found', 'err');
     location.hash = '';
     return;
   }
@@ -62,7 +73,7 @@ async function route() {
   if (m) {
     try {
       const data = JSON.parse(await decompress(m[1]));
-      const ok = await modal({ title: '🍴 Fork shared Repl', body: el('p', {}, `Someone shared "${data.name}" (${Object.keys(data.files).length} files). Fork it into your account?`), buttons: [{ label: 'Cancel', value: false }, { label: 'Fork', class: 'primary', value: true }] });
+      const ok = await modal({ title: '🍴 Fork shared project', body: el('p', {}, `Someone shared "${data.name}" (${Object.keys(data.files).length} files). Fork it into your account?`), buttons: [{ label: 'Cancel', value: false }, { label: 'Fork', class: 'primary', value: true }] });
       if (ok) {
         const p = store.createProject({ name: data.name, template: data.template, runtime: data.runtime, files: data.files, folders: data.folders || [], packages: data.packages || {} });
         location.hash = '#/repl/' + p.id;
@@ -96,30 +107,159 @@ function renderHome() {
   $('#zip-input').onchange = (e) => { const f = e.target.files[0]; e.target.value = ''; if (f) importZip(f); };
   $('#btn-import-gh').onclick = importGitHubDialog;
   $('#btn-home-settings').onclick = () => settingsModal();
+  $('#btn-connect-ai').onclick = () => connectAIModal();
+  $('#ask-form').onsubmit = (e) => { e.preventDefault(); const t = $('#ask-text').value.trim(); if (t) handleRequest(t); };
+  $('#ask-text').onkeydown = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); $('#ask-form').requestSubmit(); } };
+  $$('#ask-chips .chip').forEach((c) => { c.onclick = () => { $('#ask-text').value = c.textContent; handleRequest(c.textContent); }; });
+  updateAIButton();
 }
+
+function updateAIButton() {
+  const p = AI_PROVIDERS[S.settings.ai.provider];
+  $('#btn-connect-ai').textContent = aiReady() ? `🟢 ${p ? p.label : 'AI'} connected` : '🔌 Connect AI';
+}
+function aiReady() { return aiReadyFor(S.settings); }
+
+/** Route a natural-language request: website → visual builder, app → generated project, code → template / Agent. */
+async function handleRequest(text, { fromAgent } = {}) {
+  const c = classify(text);
+  if (c.type === 'website') {
+    const site = generateSite(text, c.kind);
+    const p = store.createProject({ name: site.name.replace(/[^\w.-]+/g, '-'), template: 'site', runtime: 'site', files: {} });
+    p.site = site; p.prompt = text; store.saveProject(p);
+    if (fromAgent) agentBubble('ai', renderMarkdown(`🎨 Opening the visual builder for **${esc(site.name)}**…`));
+    location.hash = '#/site/' + p.id;
+    return true;
+  }
+  if (c.type === 'app' && c.recipe) {
+    try {
+      const files = await loadApp(c.recipe, c.name);
+      const p = store.createProject({ name: (c.name || c.recipe).replace(/[^\w.-]+/g, '-'), template: 'html', runtime: 'web', files });
+      p.prompt = text; store.saveProject(p);
+      S.autoRun = true;
+      location.hash = '#/repl/' + p.id;
+      if (aiReady()) toast('Tip: ask the ✨ Agent to customise it — e.g. “add categories and a dark/light toggle”.');
+    } catch (e) { toast('Could not create app: ' + e.message, 'err'); }
+    return true;
+  }
+  if ((c.type === 'app' || c.type === 'code') && aiReady()) {
+    const tpl = c.type === 'code' ? ({ python: 'python', node: 'node', typescript: 'typescript', cpp: 'cpp', c: 'c', java: 'java', go: 'go', rust: 'rust', bash: 'bash' }[c.lang] || 'node') : 'html';
+    const t = getTemplate(tpl);
+    const p = store.createProject({ name: (c.name || 'my-app').replace(/[^\w.-]+/g, '-'), template: t.id, runtime: t.runtime, files: t.files });
+    S.pendingAgent = `Build this from scratch, replacing the starter files: ${text}\n\nCreate all the files needed (HTML/CSS/JS for apps unless another language was asked for), make it look polished and modern with smooth animations, add unit tests for the core logic, and make sure it runs without errors.`;
+    location.hash = '#/repl/' + p.id;
+    return true;
+  }
+  if (c.type === 'code') {
+    const t = getTemplate({ python: 'python', node: 'node', typescript: 'typescript', cpp: 'cpp', c: 'c', java: 'java', go: 'go', rust: 'rust', bash: 'bash' }[c.lang] || 'node');
+    const p = store.createProject({ name: (c.name || t.id + '-project').replace(/[^\w.-]+/g, '-'), template: t.id, runtime: t.runtime, files: t.files });
+    toast(`Created a ${t.name} project. Connect an AI to have the Agent write the code for you.`);
+    location.hash = '#/repl/' + p.id;
+    return true;
+  }
+  if (c.type === 'app') { appPickerModal(text); return true; }
+  if (!fromAgent) toast('Tell me what to build — e.g. “make a website for my gym” or “build a todo app”.');
+  return false;
+}
+
+function appPickerModal(text) {
+  let close;
+  const grid = el('div', { class: 'template-grid', style: { marginBottom: 0 } }, APPS.map((a) => el('button', { class: 'tpl', onclick: async () => { close(); const files = await loadApp(a.id, a.name); const p = store.createProject({ name: a.name.replace(/[^\w.-]+/g, '-'), template: 'html', runtime: 'web', files }); S.autoRun = true; location.hash = '#/repl/' + p.id; } }, el('span', { class: 'ico', style: { background: '#ffffff11' } }, a.icon), el('span', {}, el('b', {}, a.name)))));
+  const pr = modal({
+    title: '🛠 Build an app', wide: true,
+    body: el('div', { style: { display: 'flex', flexDirection: 'column', gap: '12px' } },
+      el('p', { style: { margin: 0 } }, `I don't have a ready-made template for “${text}”. To build any custom software from a description, connect an AI (some have free keys). Or start from one of these working apps:`),
+      el('button', { class: 'btn primary', onclick: () => { close(); connectAIModal(); } }, '🔌 Connect AI (Claude, ChatGPT, Gemini, Groq…)'),
+      grid),
+    buttons: [{ label: 'Close', value: null }],
+  });
+  close = () => { const r = $('#modal-root').lastChild; if (r) r.remove(); };
+  return pr;
+}
+
+/** Pick an AI provider, paste a key, test it. */
+function connectAIModal() {
+  const ai = { ...S.settings.ai };
+  const status = el('div', { class: 'small muted' });
+  const key = el('input', { type: 'password', value: ai.apiKey || '', placeholder: 'Paste your API key' });
+  const model = el('input', { value: ai.model || '' });
+  const base = el('input', { value: ai.baseUrl || '' });
+  const baseRow = el('label', {}, 'API base URL', base);
+  const keyLink = el('a', { target: '_blank', rel: 'noopener', class: 'small' });
+  const grid = el('div', { class: 'ai-presets' });
+  const pickP = (id) => {
+    const p = AI_PROVIDERS[id];
+    ai.provider = id;
+    if (p.baseUrl !== undefined) base.value = p.baseUrl;
+    if (!model.value || !Object.values(AI_PROVIDERS).every((x) => x.id === id || x.model !== model.value) || S.settings.ai.provider !== id) model.value = p.model;
+    baseRow.hidden = id !== 'custom' && id !== 'ollama';
+    keyLink.textContent = p.keyUrl ? `Get a ${p.label} API key ↗` : '';
+    keyLink.href = p.keyUrl || '#';
+    key.placeholder = id === 'ollama' ? 'Not needed for local Ollama' : 'Paste your API key';
+    status.innerHTML = esc(p.note || '');
+    $$('.ai-preset', grid).forEach((b) => b.classList.toggle('on', b.dataset.id === id));
+  };
+  for (const [id, p] of Object.entries(AI_PROVIDERS)) grid.append(el('button', { class: 'ai-preset', 'data-id': id, onclick: () => pickP(id) }, el('b', {}, p.icon + ' ' + p.label, p.free ? el('span', { class: 'free-tag' }, 'FREE TIER') : null), el('small', {}, p.desc)));
+  const test = el('button', { class: 'btn', onclick: async () => {
+    const s2 = { ...S.settings, ai: { ...S.settings.ai, provider: ai.provider, apiKey: key.value.trim(), model: model.value.trim(), baseUrl: base.value.trim() } };
+    status.innerHTML = '<span class="spinner"></span> Testing…';
+    try { const r = await chat(s2, [{ role: 'user', content: 'Reply with exactly: OK' }], { system: 'You are a connection test.' }); status.textContent = '✅ Connected! Reply: ' + r.slice(0, 60); } catch (e) { status.textContent = '❌ ' + e.message.slice(0, 300); }
+  } }, '🔎 Test connection');
+  const pr = modal({
+    title: '🔌 Connect an AI', wide: true,
+    body: el('div', { style: { display: 'flex', flexDirection: 'column', gap: '10px' } },
+      el('div', { class: 'small muted' }, 'Dev Engine works without AI (website builder, assistant commands, app templates, tests). Connect an AI to build ANY website or software from a description and to auto-fix bugs. Your key is stored only in this browser and sent only to the provider you choose.'),
+      grid, el('label', {}, 'API key', key), keyLink, el('label', {}, 'Model', model), baseRow, test, status),
+    buttons: [{ label: 'Disconnect', value: 'off' }, { label: 'Cancel', value: null }, { label: 'Save', class: 'primary', value: 'save' }],
+  });
+  pickP(AI_PROVIDERS[ai.provider] ? ai.provider : 'anthropic');
+  if (ai.model) model.value = ai.model;
+  pr.then((v) => {
+    if (v === 'save') { Object.assign(S.settings.ai, { provider: ai.provider, apiKey: key.value.trim(), model: model.value.trim(), baseUrl: base.value.trim() }); store.saveSettings(S.settings); toast(aiReady() ? 'AI connected ✓' : 'Saved', 'ok'); }
+    if (v === 'off') { S.settings.ai.apiKey = ''; if (S.settings.ai.provider === 'ollama') S.settings.ai.provider = 'anthropic'; store.saveSettings(S.settings); toast('AI disconnected'); }
+    updateAIButton();
+    if (S.panel === 'settings' && S.project) renderSide();
+  });
+  return pr;
+}
+
+const builderDeps = {
+  saveProject: (p) => store.saveProject(p),
+  aiReady: () => aiReady(),
+  chat: (messages, opts) => chat(S.settings, messages, opts),
+  connectAI: () => connectAIModal(),
+  openAsCode: (name, files) => {
+    const p = store.createProject({ name: (name + '-code').replace(/[^\w.-]+/g, '-'), template: 'html', runtime: 'web', files });
+    S.autoRun = true;
+    toast('Opened as code — edits here do not change the visual design.');
+    location.hash = '#/repl/' + p.id;
+  },
+  publishGitHub: async (name, filesPromise) => githubModal(true, await filesPromise, name.toLowerCase().replace(/[^\w]+/g, '-')),
+};
 
 function renderReplList() {
   const q = ($('#home-search').value || '').toLowerCase();
   const list = store.listProjects().filter((p) => p.name.toLowerCase().includes(q));
   const box = $('#repl-list');
   box.innerHTML = '';
-  $('#repl-count').textContent = list.length ? `${list.length} Repl${list.length > 1 ? 's' : ''}` : '';
-  if (!list.length) { box.append(el('div', { class: 'empty' }, q ? 'No Repls match your search.' : 'No Repls yet — pick a template above and press “Create Repl”.')); return; }
+  $('#repl-count').textContent = list.length ? `${list.length} project${list.length > 1 ? 's' : ''}` : '';
+  if (!list.length) { box.append(el('div', { class: 'empty' }, q ? 'No projects match your search.' : 'No projects yet — describe what to build above, or pick a template.')); return; }
   for (const p of list) {
-    const t = getTemplate(p.template);
-    box.append(el('div', { class: 'repl-card', onclick: () => { location.hash = '#/repl/' + p.id; } },
+    const isSite = p.runtime === 'site';
+    const t = isSite ? { icon: '🎨', name: 'Visual website' } : getTemplate(p.template);
+    box.append(el('div', { class: 'repl-card', onclick: () => { location.hash = (isSite ? '#/site/' : '#/repl/') + p.id; } },
       el('h3', {}, el('span', {}, t.icon), p.name),
-      el('div', { class: 'meta' }, `${t.name} · ${p.fileCount || 0} files · edited ${timeAgo(p.updatedAt)}`),
+      el('div', { class: 'meta' }, `${t.name}${isSite ? '' : ` · ${p.fileCount || 0} files`} · edited ${timeAgo(p.updatedAt)}`),
       el('button', { class: 'btn icon sm card-menu', title: 'Options', onclick: (e) => { e.stopPropagation(); replCardMenu(e, p); } }, '⋯')));
   }
 }
 
 function replCardMenu(e, meta) {
   menu(e.clientX, e.clientY, [
-    { label: '📂 Open', action: () => { location.hash = '#/repl/' + meta.id; } },
+    { label: '📂 Open', action: () => { location.hash = (meta.runtime === 'site' ? '#/site/' : '#/repl/') + meta.id; } },
     { label: '✏️ Rename', action: async () => { const n = await promptModal('Rename Repl', 'Name', meta.name); if (n) { const p = store.loadProject(meta.id); p.name = n; store.saveProject(p); renderReplList(); } } },
     { label: '🍴 Fork / Duplicate', action: () => { const p = store.loadProject(meta.id); store.createProject({ ...p, name: p.name + '-copy' }); renderReplList(); toast('Duplicated', 'ok'); } },
-    { label: '⤓ Download .zip', action: () => exportZip(store.loadProject(meta.id)) },
+    ...(meta.runtime === 'site' ? [] : [{ label: '⤓ Download .zip', action: () => exportZip(store.loadProject(meta.id)) }]),
     '-',
     { label: '🗑 Delete', action: async () => { if (await confirmModal('Delete Repl', `Delete "${meta.name}" permanently? This cannot be undone.`)) { store.deleteProject(meta.id); renderReplList(); } } },
   ]);
@@ -207,13 +347,18 @@ function openWorkspace(p) {
   setMobile('editor');
   connectBackend();
   if (term) resetShell();
+  if (S.autoRun) { S.autoRun = false; setTimeout(() => run(), 300); }
+  if (S.pendingAgent) { const t = S.pendingAgent; S.pendingAgent = null; setTimeout(() => { setOut('agent'); setMobile('agent'); agentSend(t, { display: '🛠 ' + (p.prompt || 'Build the project'), label: 'Agent build', auto: true }).then(() => run()); }, 400); }
 }
 
-function closeWorkspace() {
+function closeWorkspace(keepHomeHidden) {
   if (S.project) saveNow();
   stopRun(true);
   S.project = null;
   $('#workspace').hidden = true;
+  if (!$('#builder').hidden && !keepHomeHidden) closeBuilder();
+  if (keepHomeHidden) return;
+  $('#builder').hidden = true;
   $('#home').hidden = false;
   document.title = 'Dev Engine — Build, Test & Fix in your browser';
   backend.disconnect();
@@ -886,23 +1031,11 @@ function settingsForm(inWorkspace) {
   f.append(el('label', {}, chk(s.formatOnSave, (v) => { s.formatOnSave = v; }), ' Format on save (Ctrl+S)'));
   f.append(el('label', {}, chk(s.liveReload !== false, (v) => { s.liveReload = v; }), ' Live-reload webview while typing'));
 
-  f.append(el('hr', { style: { border: 0, borderTop: '1px solid var(--border)', width: '100%' } }), el('b', {}, '✨ AI Agent'));
+  f.append(el('hr', { style: { border: 0, borderTop: '1px solid var(--border)', width: '100%' } }), el('b', {}, '✨ AI'));
   const ai = s.ai;
-  const key = el('input', { type: 'password', value: ai.apiKey, placeholder: 'sk-…' }); key.onchange = () => { ai.apiKey = key.value.trim(); save(); };
-  const model = el('input', { value: ai.model }); model.onchange = () => { ai.model = model.value.trim(); save(); };
-  const base = el('input', { value: ai.baseUrl }); base.onchange = () => { ai.baseUrl = base.value.trim(); save(); };
-  const baseRow = field('API base URL (OpenAI-compatible)', base);
-  const showBase = () => { baseRow.hidden = ai.provider === 'anthropic'; };
-  f.append(field('Provider', sel(ai.provider, [['anthropic', 'Anthropic (Claude)'], ['openai', 'OpenAI / OpenRouter / Groq (compatible)'], ['ollama', 'Ollama (local)']], (v) => {
-    ai.provider = v;
-    if (v === 'anthropic' && !/claude/.test(ai.model)) ai.model = 'claude-sonnet-5-5';
-    if (v === 'ollama') { ai.baseUrl = 'http://localhost:11434/v1'; if (/claude|gpt/.test(ai.model)) ai.model = 'qwen2.5-coder'; }
-    if (v === 'openai' && (/claude/.test(ai.model) || ai.baseUrl.includes('11434'))) { ai.model = 'gpt-4o-mini'; ai.baseUrl = 'https://api.openai.com/v1'; }
-    model.value = ai.model; base.value = ai.baseUrl; showBase();
-  })));
-  f.append(field('API key (stored only in this browser)', key));
-  f.append(field('Model', model));
-  f.append(baseRow); showBase();
+  const prov = AI_PROVIDERS[ai.provider];
+  f.append(el('div', { class: 'small' }, aiReady() ? `🟢 ${prov ? prov.label : ai.provider} · ${ai.model}` : '⚪ Not connected (optional)'),
+    el('button', { class: 'btn sm primary', onclick: () => connectAIModal() }, aiReady() ? '🔌 Change AI' : '🔌 Connect AI'));
   const rounds = el('input', { type: 'number', min: 1, max: 8, value: ai.maxFixRounds }); rounds.onchange = () => { ai.maxFixRounds = Math.max(1, Math.min(8, +rounds.value || 3)); save(); };
   f.append(field('Max auto-fix rounds', rounds));
 
@@ -914,7 +1047,7 @@ function settingsForm(inWorkspace) {
     el('button', { class: 'btn sm', onclick: async () => { s.backendUrl = burl.value.trim().replace(/\/$/, ''); save(); bstat.textContent = '… connecting'; const ok = S.project ? await connectBackend() : await new Backend().connect(s.backendUrl, 'probe'); bstat.textContent = ok ? '● connected' : '✕ could not connect'; } }, 'Connect'), bstat),
   el('div', { class: 'muted small' }, 'Start it from the repo: cd server && npm install && npm start  (or docker compose up), then paste its URL, e.g. http://localhost:3001?token=…'));
   if (inWorkspace && S.project) {
-    f.append(el('label', {}, chk(S.project.useBackend, (v) => { S.project.useBackend = v; saveNow(); }), ' Run this Repl on the backend (when connected)'));
+    f.append(el('label', {}, chk(S.project.useBackend, (v) => { S.project.useBackend = v; saveNow(); }), ' Run this project on the backend (when connected)'));
   }
 
   f.append(el('hr', { style: { border: 0, borderTop: '1px solid var(--border)', width: '100%' } }), el('b', {}, '🐙 GitHub'));
@@ -924,7 +1057,7 @@ function settingsForm(inWorkspace) {
 
   f.append(el('hr', { style: { border: 0, borderTop: '1px solid var(--border)', width: '100%' } }), el('b', {}, '💾 Data'));
   f.append(el('div', { style: { display: 'flex', gap: '6px', flexWrap: 'wrap' } },
-    el('button', { class: 'btn sm', onclick: backupAll }, '⤓ Backup all Repls'),
+    el('button', { class: 'btn sm', onclick: backupAll }, '⤓ Backup all projects'),
     el('button', { class: 'btn sm', onclick: restoreAll }, '⬆ Restore backup')));
   return f;
 }
@@ -953,7 +1086,7 @@ function restoreAll() {
       const data = JSON.parse(await inp.files[0].text());
       let n = 0;
       for (const p of data.projects || []) { if (p && p.id && p.files) { store.saveProject(p); n++; } }
-      toast(`Restored ${n} Repls`, 'ok'); renderReplList();
+      toast(`Restored ${n} projects`, 'ok'); renderReplList();
     } catch (e) { toast('Invalid backup: ' + e.message, 'err'); }
   };
   inp.click();
@@ -1145,7 +1278,7 @@ async function runServer(cmdFromCfg) {
   if (!backend.connected) {
     const ok = await connectBackend();
     if (!ok) {
-      consoleLine('This Repl needs the Dev Engine backend to run (C, C++, Java, Go, Rust, Bash, real Node/Python…).', 'warn');
+      consoleLine('This project needs the Dev Engine backend to run (C, C++, Java, Go, Rust, Bash, real Node/Python…).', 'warn');
       consoleLine('Start it with:  cd server && npm install && npm start   (or docker compose up)  — then set the URL in ⚙ Settings → Backend.', 'sys');
       return;
     }
@@ -1404,7 +1537,7 @@ function renderAgentHistory() {
   box.innerHTML = '';
   const hist = S.project.agentChat || [];
   if (!hist.length) {
-    agentBubble('ai', renderMarkdown(`👋 **Hi, I'm the Dev Engine Agent.** Tell me what to build or fix and I'll edit your files directly.\n\n- **Build → Test → Fix** runs your app and tests, then fixes errors automatically until everything passes.\n- Every change creates a checkpoint you can restore.\n\n${S.settings.ai.apiKey || S.settings.ai.provider === 'ollama' ? '' : '⚠ Add your API key in ⚙ Settings → AI Agent first (Anthropic, OpenAI-compatible or local Ollama).'}`));
+    agentBubble('ai', renderMarkdown(`👋 **Hi, I'm the Dev Engine Agent.** Tell me what to build or fix and I'll edit your files directly.\n\n- **Build → Test → Fix** runs your app and tests, then fixes errors automatically until everything passes.\n- Every change creates a checkpoint you can restore.\n\n${aiReady() ? '' : 'No AI connected — I can still build websites and template apps: try *“make a website for my café”* or *“build a quiz app”*. Tap 🔌 to connect Claude, ChatGPT, Gemini, Groq… for everything else.'}`));
   }
   for (const m of hist) {
     if (m.role === 'user') agentBubble('user', esc(m.display || m.content));
@@ -1413,10 +1546,9 @@ function renderAgentHistory() {
 }
 
 function needKey() {
-  const ai = S.settings.ai;
-  if (ai.apiKey || ai.provider === 'ollama') return false;
-  const b = agentBubble('ai', renderMarkdown('⚠ **No API key yet.** Add your Anthropic or OpenAI-compatible key (or choose local Ollama) in Settings — it stays in this browser only.'));
-  b.append(el('button', { class: 'btn sm primary', style: { marginTop: '8px' }, onclick: () => { setPanel('settings'); setMobile('side'); } }, 'Open Settings'));
+  if (aiReady()) return false;
+  const b = agentBubble('ai', renderMarkdown('🔌 **No AI connected yet.** Without AI I can still:\n- build websites (*“make a website for my gym”*) in the visual builder\n- create apps from templates (*“build a todo app”*, *“snake game”*, *“expense tracker”*…)\n- run, test and find problems in your code\n\nTo build **anything** from a description and auto-fix bugs, connect Claude, ChatGPT, Gemini, Groq or OpenRouter (some have free keys).'));
+  b.append(el('button', { class: 'btn sm primary', style: { marginTop: '8px' }, onclick: () => connectAIModal() }, '🔌 Connect AI'));
   return true;
 }
 
@@ -1427,6 +1559,10 @@ function needKey() {
 async function agentSend(text, opts = {}) {
   if (!S.project) return null;
   setOut('agent');
+  if (!aiReady() && !opts.auto) {
+    const c = classify(text);
+    if (c.type === 'website' || (c.type === 'app' && c.recipe)) { agentBubble('user', esc(opts.display || text)); await handleRequest(text, { fromAgent: true }); return null; }
+  }
   if (needKey()) return null;
   if (S.agentBusy) { toast('Agent is busy…'); return null; }
   S.agentBusy = true;
@@ -1692,7 +1828,7 @@ async function shareRepl() {
   const input = el('input', { value: url, readonly: true });
   const big = url.length > 60000;
   modal({
-    title: '🔗 Share this Repl',
+    title: '🔗 Share this project',
     body: el('div', { style: { display: 'flex', flexDirection: 'column', gap: '8px' } },
       el('div', { class: 'muted small' }, 'Anyone with this link can fork a copy of your code (secrets are never included).' + (big ? ' ⚠ This project is large — the link may be too long for some apps; consider pushing to GitHub instead.' : '')),
       input,
@@ -1726,11 +1862,11 @@ function deployModal() {
   return pr;
 }
 
-async function githubModal(pages) {
-  const p = S.project;
+async function githubModal(pages, filesOverride, repoName) {
+  const p = S.project || { name: repoName || 'website', files: {} };
   const s = S.settings;
   const tok = el('input', { type: 'password', value: s.githubToken || '', placeholder: 'ghp_…' });
-  const repo = el('input', { value: p.githubRepo || p.name });
+  const repo = el('input', { value: (filesOverride && repoName) || p.githubRepo || p.name });
   const msg = el('input', { value: pages ? 'Deploy from Dev Engine' : 'Update from Dev Engine' });
   const priv = el('input', { type: 'checkbox', checked: !pages && !!p.githubPrivate });
   const r = await modal({
@@ -1745,16 +1881,17 @@ async function githubModal(pages) {
   });
   if (!r) return;
   s.githubToken = tok.value.trim(); store.saveSettings(s);
-  p.githubRepo = repo.value.trim(); p.githubPrivate = priv.checked; saveNow();
+  if (!filesOverride) { p.githubRepo = repo.value.trim(); p.githubPrivate = priv.checked; saveNow(); }
   const t = el('div', { class: 'toast' }, el('span', { class: 'spinner' }), ' Starting…');
   $('#toasts').append(t);
   try {
-    const files = { ...p.files };
-    if (pages) {
+    const files = filesOverride ? { ...filesOverride } : { ...p.files };
+    if (pages && !filesOverride) {
       // ensure index.html exists at the root for Pages
       if (!('index.html' in files) && S.page in files) files['index.html'] = files[S.page];
       files['.nojekyll'] = '';
     }
+    if (pages) files['.nojekyll'] = '';
     const res = await pushRepo({ token: s.githubToken, repo: p.githubRepo, files, message: msg.value, isPrivate: priv.checked && !pages, enablePages: pages, description: `${p.name} — built with Dev Engine`, onStep: (m) => { t.lastChild.textContent = ' ' + m; } });
     t.remove();
     modal({ title: '✅ Done', body: el('div', { style: { display: 'flex', flexDirection: 'column', gap: '8px' } }, el('a', { href: res.url, target: '_blank', rel: 'noopener' }, '🐙 ' + res.url), res.pagesUrl ? el('a', { href: res.pagesUrl, target: '_blank', rel: 'noopener' }, '🌍 ' + res.pagesUrl + ' (live in ~1 min)') : null) });

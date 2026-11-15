@@ -74,9 +74,16 @@ export async function pushRepo({ token, repo, files, message = 'Update from Dev 
   onStep('Preparing commit…');
   let parent = null;
   try { parent = (await gh(token, 'GET', `/repos/${owner}/${name}/git/ref/heads/${branch}`)).object.sha; } catch { parent = null; }
-  const tree = await gh(token, 'POST', `/repos/${owner}/${name}/git/trees`, {
-    tree: Object.entries(files).map(([path, content]) => ({ path, mode: path.endsWith('.sh') ? '100755' : '100644', type: 'blob', content })),
-  });
+  const entries = [];
+  for (const [path, content] of Object.entries(files)) {
+    if (typeof Blob !== 'undefined' && content instanceof Blob) {
+      onStep(`Uploading ${path}…`);
+      const b64 = await blobToBase64(content);
+      const blob = await gh(token, 'POST', `/repos/${owner}/${name}/git/blobs`, { content: b64, encoding: 'base64' });
+      entries.push({ path, mode: '100644', type: 'blob', sha: blob.sha });
+    } else entries.push({ path, mode: path.endsWith('.sh') ? '100755' : '100644', type: 'blob', content: String(content) });
+  }
+  const tree = await gh(token, 'POST', `/repos/${owner}/${name}/git/trees`, { tree: entries });
   const commit = await gh(token, 'POST', `/repos/${owner}/${name}/git/commits`, { message, tree: tree.sha, parents: parent ? [parent] : [] });
   onStep('Pushing…');
   if (parent) await gh(token, 'PATCH', `/repos/${owner}/${name}/git/refs/heads/${branch}`, { sha: commit.sha, force: true });
@@ -88,4 +95,8 @@ export async function pushRepo({ token, repo, files, message = 'Update from Dev 
     out.pagesUrl = `https://${owner.toLowerCase()}.github.io/${name}/`;
   }
   return out;
+}
+
+function blobToBase64(blob) {
+  return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1]); r.onerror = rej; r.readAsDataURL(blob); });
 }

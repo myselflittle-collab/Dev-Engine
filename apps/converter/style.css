@@ -1,0 +1,2 @@
+@import url('_base.css');
+.conv { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; } .conv input { font-size: 22px; font-weight: 700; } .eq { text-align: center; font-size: 24px; margin-top: 8px; color: var(--muted); }

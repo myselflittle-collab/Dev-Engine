@@ -1,0 +1,5 @@
+@import url('_base.css');
+.out { display: flex; gap: 8px; } #out { font-family: ui-monospace, monospace; font-size: 18px; }
+.meter { height: 8px; background: #0b1222; border-radius: 99px; margin: 12px 0 4px; overflow: hidden; } #m { height: 100%; width: 0; transition: width .4s, background .4s; }
+label { display: block; margin-top: 10px; } .ck { display: inline-flex; gap: 6px; align-items: center; margin-right: 14px; } .ck input { width: 20px; height: 20px; accent-color: var(--primary); }
+input[type=range] { accent-color: var(--primary); padding: 0; }

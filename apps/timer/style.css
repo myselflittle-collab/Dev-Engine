@@ -1,0 +1,6 @@
+@import url('_base.css');
+.tabs { display: flex; gap: 6px; margin-bottom: 12px; } .tabs button { flex: 1; background: var(--card); border: 1px solid var(--line); } .tabs button.on { background: var(--primary); }
+.center { text-align: center; } .ring { position: relative; width: 240px; margin: 10px auto 20px; } svg { transform: rotate(-90deg); } circle { fill: none; stroke-width: 6; } .bg { stroke: #0b1222; } #arc { stroke: var(--primary); stroke-linecap: round; stroke-dasharray: 283; stroke-dashoffset: 0; transition: stroke-dashoffset .2s; }
+#time { position: absolute; inset: 0; display: grid; place-items: center; font-size: 40px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.setup { margin-bottom: 10px; } #laps { text-align: left; max-height: 160px; overflow: auto; }
+.ring.done #time { animation: pop .4s 3; color: var(--ok); }

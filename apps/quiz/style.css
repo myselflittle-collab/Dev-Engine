@@ -1,0 +1,5 @@
+@import url('_base.css');
+h2 { font-size: 21px; } .opts { display: grid; gap: 10px; } .opts button { background: #273449; text-align: left; padding: 14px; }
+.opts button.right { background: var(--ok); } .opts button.wrong { background: var(--bad); }
+.bar { height: 8px; background: #0b1222; border-radius: 99px; overflow: hidden; } #fill { height: 100%; width: 0; background: var(--primary); transition: width .4s; }
+.score { font-size: 56px; text-align: center; margin: 10px 0; }

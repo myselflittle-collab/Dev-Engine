@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>{{APP_NAME}}</title><link rel="stylesheet" href="style.css"></head>
+<body>
+<main class="app">
+  <h1>🔐 {{APP_NAME}}</h1><p class="sub">Strong random passwords, generated on your device</p>
+  <div class="card"><div class="out"><input id="out" readonly><button id="copy">Copy</button></div><div class="meter"><div id="m"></div></div><p class="small muted" id="strength"></p>
+  <label>Length: <b id="lenv">16</b><input type="range" id="len" min="6" max="64" value="16"></label>
+  <label class="ck"><input type="checkbox" id="up" checked> A–Z</label><label class="ck"><input type="checkbox" id="lo" checked> a–z</label><label class="ck"><input type="checkbox" id="num" checked> 0–9</label><label class="ck"><input type="checkbox" id="sym" checked> !@#$</label>
+  <button id="gen" style="width:100%;margin-top:12px">🎲 Generate</button></div>
+</main>
+<script type="module" src="app.js"></script>
+</body>
+</html>

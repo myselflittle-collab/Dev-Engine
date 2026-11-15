@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>{{APP_NAME}}</title><link rel="stylesheet" href="style.css"></head>
+<body>
+<main class="app small-app">
+  <h1>🐍 {{APP_NAME}}</h1><p class="sub"><span id="score">Score 0</span> · <span id="best">Best 0</span></p>
+  <div class="card"><canvas id="c" width="400" height="400"></canvas>
+  <div class="pad"><span></span><button data-d="up">▲</button><span></span><button data-d="left">◀</button><button id="pause">⏯</button><button data-d="right">▶</button><span></span><button data-d="down">▼</button><span></span></div>
+  <p class="muted small center">Arrow keys, swipe on the board, or use the buttons.</p></div>
+</main>
+<script type="module" src="app.js"></script>
+</body>
+</html>

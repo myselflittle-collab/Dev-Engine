@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>{{APP_NAME}}</title><link rel="stylesheet" href="style.css"></head>
+<body>
+<main class="app">
+  <h1>✅ {{APP_NAME}}</h1><p class="sub" id="stats">Plan your day</p>
+  <form class="card row" id="form"><input id="text" placeholder="What needs to be done?" autocomplete="off" required><select id="prio" style="max-width:120px"><option value="normal">Normal</option><option value="high">🔥 High</option><option value="low">Low</option></select><button>Add</button></form>
+  <div class="filters"><button data-f="all" class="on">All</button><button data-f="active">Active</button><button data-f="done">Done</button><button class="ghost" id="clear">Clear done</button></div>
+  <ul id="list" class="card list"></ul>
+</main>
+<script type="module" src="app.js"></script>
+</body>
+</html>

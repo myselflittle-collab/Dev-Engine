@@ -1,0 +1,12 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>{{APP_NAME}}</title><link rel="stylesheet" href="style.css"></head>
+<body>
+<main class="app wide">
+  <h1>🎨 {{APP_NAME}}</h1>
+  <div class="card"><div class="tools"><input type="color" id="color" value="#6366f1"><input type="range" id="size" min="1" max="60" value="8"><button class="ghost" id="eraser">🧽 Eraser</button><button class="ghost" id="undo">↶ Undo</button><button class="ghost" id="clear">🗑 Clear</button><button id="save">⤓ Save PNG</button></div>
+  <canvas id="c"></canvas></div>
+</main>
+<script type="module" src="app.js"></script>
+</body>
+</html>

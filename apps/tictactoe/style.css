@@ -1,0 +1,5 @@
+@import url('_base.css');
+.small-app { max-width: 400px; } .center { text-align: center; }
+.board { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; aspect-ratio: 1; }
+.board button { font-size: 52px; background: #0b1222; border-radius: 16px; aspect-ratio: 1; padding: 0; }
+.board button.x { color: #60a5fa; } .board button.o { color: #f472b6; } .board button.win { background: var(--ok); color: #fff; animation: pop .4s; }

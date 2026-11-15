@@ -1,0 +1,5 @@
+@import url('_base.css');
+.wide { max-width: 900px; } .layout { display: grid; grid-template-columns: 260px 1fr; gap: 14px; }
+.side ul { list-style: none; padding: 0; margin: 10px 0 0; max-height: 60vh; overflow: auto; } .side li { padding: 10px; border-radius: 10px; cursor: pointer; } .side li.on { background: #334155; } .side li small { display: block; color: var(--muted); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.editor { display: flex; flex-direction: column; gap: 10px; } #title { font-size: 20px; font-weight: 700; } #body { flex: 1; min-height: 50vh; resize: vertical; line-height: 1.6; }
+@media (max-width: 700px) { .layout { grid-template-columns: 1fr; } }

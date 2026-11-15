@@ -1,0 +1,4 @@
+@import url('_base.css');
+.wide { max-width: 1000px; } .tools { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; } .tools input[type=color] { width: 54px; height: 42px; padding: 2px; } .tools input[type=range] { width: 140px; accent-color: var(--primary); }
+.tools .on { background: var(--primary); }
+canvas { width: 100%; height: 65vh; background: #fff; border-radius: 12px; touch-action: none; display: block; cursor: crosshair; }

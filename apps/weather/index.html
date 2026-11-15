@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>{{APP_NAME}}</title><link rel="stylesheet" href="style.css"></head>
+<body>
+<main class="app">
+  <h1>🌤️ {{APP_NAME}}</h1><p class="sub">Free forecast from Open-Meteo — no API key needed</p>
+  <form class="card row" id="form"><input id="city" placeholder="City (e.g. Bhubaneswar)" value="Bhubaneswar"><button>Search</button><button type="button" class="ghost" id="loc" title="My location">📍</button></form>
+  <div class="card now" id="now"><p class="muted">Loading…</p></div>
+  <div class="card"><b>Next 7 days</b><div class="days" id="days"></div></div>
+</main>
+<script type="module" src="app.js"></script>
+</body>
+</html>

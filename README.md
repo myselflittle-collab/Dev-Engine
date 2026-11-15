@@ -5,7 +5,31 @@ A Replit-style online IDE with an AI Agent that runs your code, runs your tests 
 
 <p align="center"><a href="https://myselflittle-collab.github.io/Dev-Engine/"><b>▶ Open Dev Engine</b></a></p>
 
+![Visual website builder with animation assistant](docs/screenshot-builder.png)
+
 ![Dev Engine workspace with the AI Agent fixing a failing test](docs/screenshot-agent.png)
+
+## ✨ Just describe it
+
+Type what you want on the home screen:
+
+- **“Make a website for my pet clinic called PetHealer”** → opens the **visual website builder** with a complete, editable, animated website (12 business types: café, clinic, gym, salon, shop, portfolio, wedding, travel, startup…)
+- **“Build a todo app”**, “expense tracker”, “snake game”, “weather app”, “calculator”, “quiz”, “kanban”, “drawing pad”… → generates a **working app** with code and unit tests
+- Anything else → with an AI connected, the Agent builds it from scratch
+
+No API key is needed for the builder, the design assistant or the app templates.
+
+### Visual website builder (like Figma — but with animation)
+- Tap anything to select it; tap again to edit text right on the page
+- Upload **photos and videos** from your iPad/phone, or paste YouTube links
+- Add sections (hero, services, gallery, video, pricing, testimonials, contact form, map, footer, free-drag canvas) and elements (text, buttons, images, videos, cards, shapes, emoji…)
+- **Animations:** 12 entrance effects (slide, zoom, bounce, flip, blur, typewriter…), hover effects, looping effects (pulse, float, spin, heartbeat…), background effects (moving gradient, parallax, slow-zoom, floating bubbles), timing and delays, one-click presets
+- **🤖 Design assistant (works offline):** *“animate the hero with bounce”*, *“make buttons pulse”*, *“dark mode”*, *“change title to "Fresh Cakes"”*, *“add a pricing section”*, *“make it faster”*, *“undo”*…
+- Desktop / tablet / phone preview, undo/redo, layers, themes and Google Fonts
+- **Publish:** full-screen preview, GitHub Pages, ZIP, single HTML file, or open as code
+
+### Connect any AI (optional)
+Claude, ChatGPT, **Gemini (free key)**, **Groq (free tier)**, **OpenRouter (free models)**, DeepSeek, Mistral, Ollama (local) or any OpenAI-compatible API — via **🔌 Connect AI**.
 
 ## Features
 
@@ -58,7 +82,7 @@ DEVENGINE_TOKEN=my-secret docker compose up --build
 ```
 
 Open `http://localhost:3001` (the server also serves the IDE) and set **Settings → Backend URL** to `http://localhost:3001?token=my-secret`.
-Templates for C, C++, Java, Go, Rust and Bash use it automatically; tick *"Run this Repl on the backend"* to run Node/Python projects natively too.
+Templates for C, C++, Java, Go, Rust and Bash use it automatically; tick *"Run this project on the backend"* to run Node/Python projects natively too.
 
 > ⚠️ The backend executes whatever code the browser sends. Run it on your own machine or in Docker, and always set `DEVENGINE_TOKEN` if it is reachable by anyone else.
 

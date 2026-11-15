@@ -19,6 +19,24 @@ Rules:
 - Preserve the project's language, style and structure.
 - The runtime: web projects run in an iframe webview; JavaScript/TypeScript runs in a Node-like browser sandbox (ESM imports of npm packages come from esm.sh); Python runs on Pyodide (no threads, no sockets); other languages need the Dev Engine backend.`;
 
+/** AI providers. All except Anthropic use the OpenAI-compatible /chat/completions API. */
+export const AI_PROVIDERS = {
+  anthropic: { id: 'anthropic', label: 'Claude', icon: '🟠', desc: 'Anthropic — best for coding', model: 'claude-sonnet-5-5', baseUrl: '', keyUrl: 'https://console.anthropic.com/settings/keys' },
+  openai: { id: 'openai', label: 'ChatGPT', icon: '🟢', desc: 'OpenAI GPT models', model: 'gpt-5.4-mini', baseUrl: 'https://api.openai.com/v1', keyUrl: 'https://platform.openai.com/api-keys' },
+  gemini: { id: 'gemini', label: 'Gemini', icon: '🔵', desc: 'Google — free key, no card', model: 'gemini-2.5-flash', baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai', keyUrl: 'https://aistudio.google.com/apikey', free: true, note: 'Google AI Studio gives a free Gemini key (no credit card). Free-tier prompts may be used by Google to improve products.' },
+  groq: { id: 'groq', label: 'Groq', icon: '⚡', desc: 'Very fast open models', model: 'openai/gpt-oss-120b', baseUrl: 'https://api.groq.com/openai/v1', keyUrl: 'https://console.groq.com/keys', free: true, note: 'Groq has a free tier with rate limits (no credit card).' },
+  openrouter: { id: 'openrouter', label: 'OpenRouter', icon: '🌐', desc: '300+ models, some free', model: 'openai/gpt-oss-120b:free', baseUrl: 'https://openrouter.ai/api/v1', keyUrl: 'https://openrouter.ai/keys', free: true, note: 'Models ending in “:free” cost nothing (daily limits apply).' },
+  deepseek: { id: 'deepseek', label: 'DeepSeek', icon: '🐋', desc: 'Low-cost coding models', model: 'deepseek-chat', baseUrl: 'https://api.deepseek.com/v1', keyUrl: 'https://platform.deepseek.com/api_keys' },
+  mistral: { id: 'mistral', label: 'Mistral', icon: '🌬️', desc: 'Mistral AI models', model: 'mistral-small-latest', baseUrl: 'https://api.mistral.ai/v1', keyUrl: 'https://console.mistral.ai/api-keys' },
+  ollama: { id: 'ollama', label: 'Ollama', icon: '🦙', desc: 'Free, runs on your PC', model: 'qwen2.5-coder', baseUrl: 'http://localhost:11434/v1', keyUrl: 'https://ollama.com/download', free: true, note: 'Runs on your own computer (not on iPad). Start it with OLLAMA_ORIGINS=* ollama serve.' },
+  custom: { id: 'custom', label: 'Other', icon: '🔧', desc: 'Any OpenAI-compatible API', model: '', baseUrl: 'https://', keyUrl: '' },
+};
+
+export function aiReady(settings) {
+  const ai = (settings && settings.ai) || {};
+  return !!(ai.apiKey || ai.provider === 'ollama');
+}
+
 /** Parse <<<FILE ...>>> and <<<DELETE ...>>> blocks from model output. */
 export function parseEdits(text) {
   const edits = [];
@@ -81,7 +99,7 @@ export function projectContext(project, { activeFile, problems = [], consoleText
  */
 export async function chat(settings, messages, { system = SYSTEM_PROMPT, onToken = () => {}, signal } = {}) {
   const ai = settings.ai || {};
-  if (!ai.apiKey && ai.provider !== 'ollama') throw new Error('No API key set. Open ⚙ Settings → AI Agent and add your key.');
+  if (!ai.apiKey && ai.provider !== 'ollama') throw new Error('No AI connected. Tap 🔌 Connect AI and add a key.');
   if (ai.provider === 'anthropic') return anthropic(ai, messages, system, onToken, signal);
   return openaiCompat(ai, messages, system, onToken, signal);
 }
@@ -126,9 +144,11 @@ async function anthropic(ai, messages, system, onToken, signal) {
 }
 
 async function openaiCompat(ai, messages, system, onToken, signal) {
-  const base = (ai.provider === 'ollama' ? ai.baseUrl || 'http://localhost:11434/v1' : ai.baseUrl || 'https://api.openai.com/v1').replace(/\/$/, '');
+  const preset = AI_PROVIDERS[ai.provider] || AI_PROVIDERS.openai;
+  const base = (ai.baseUrl && ai.baseUrl !== 'https://' ? ai.baseUrl : preset.baseUrl).replace(/\/$/, '');
   const headers = { 'content-type': 'application/json' };
   if (ai.apiKey) headers.authorization = 'Bearer ' + ai.apiKey;
+  if (ai.provider === 'openrouter') { headers['HTTP-Referer'] = location.origin; headers['X-Title'] = 'Dev Engine'; }
   const res = await fetch(base + '/chat/completions', {
     method: 'POST', signal, headers,
     body: JSON.stringify({ model: ai.model, stream: true, messages: [{ role: 'system', content: system }, ...messages] }),
@@ -150,6 +170,7 @@ export function renderMarkdown(md) {
   s = esc(s)
     .replace(/`([^`\n]+)`/g, '<code>$1</code>')
     .replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>')
+    .replace(/(^|[\s(])\*([^*\n]+)\*(?=[\s).,!?:]|$)/g, '$1<i>$2</i>')
     .replace(/^### (.*)$/gm, '<b>$1</b>')
     .replace(/^## (.*)$/gm, '<b>$1</b>')
     .replace(/^# (.*)$/gm, '<b>$1</b>')
