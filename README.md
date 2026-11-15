@@ -3,7 +3,7 @@
 <p align="center"><b>Build, run, test and fix software, websites and web apps — right in your browser.</b><br>
 A Replit-style online IDE with an AI Agent that runs your code, runs your tests and fixes the bugs for you.</p>
 
-<p align="center"><a href="https://myselflittle-collab.github.io/dev-engine/"><b>▶ Open Dev Engine</b></a></p>
+<p align="center"><a href="https://myselflittle-collab.github.io/Dev-Engine/"><b>▶ Open Dev Engine</b></a></p>
 
 ![Dev Engine workspace with the AI Agent fixing a failing test](docs/screenshot-agent.png)
 
@@ -35,8 +35,8 @@ A Replit-style online IDE with an AI Agent that runs your code, runs your tests 
 **Run locally:**
 
 ```bash
-git clone https://github.com/myselflittle-collab/dev-engine.git
-cd dev-engine
+git clone https://github.com/myselflittle-collab/Dev-Engine.git
+cd Dev-Engine
 npm start            # serves the IDE at http://localhost:8080
 ```
 
