@@ -77,12 +77,15 @@ export function getCheckpoint(id, cpId) {
 const DEFAULT_SETTINGS = {
   theme: 'dark', fontSize: 14, wordWrap: 'on', minimap: false, tabSize: 2, autoSave: true, formatOnSave: false,
   backendUrl: '',
-  ai: { provider: 'anthropic', apiKey: '', model: 'claude-sonnet-5-5', baseUrl: 'https://api.openai.com/v1', maxFixRounds: 3 },
+  ai: { provider: 'puter', apiKey: '', model: 'claude-sonnet-4-6', baseUrl: '', maxFixRounds: 3 },
 };
 
 export function getSettings() {
   const s = read('settings', {});
-  return { ...DEFAULT_SETTINGS, ...s, ai: { ...DEFAULT_SETTINGS.ai, ...(s.ai || {}) } };
+  const out = { ...DEFAULT_SETTINGS, ...s, ai: { ...DEFAULT_SETTINGS.ai, ...(s.ai || {}) } };
+  // users who never connected an AI get the free no-key AI by default
+  if (!out.ai.apiKey && (out.ai.provider === 'anthropic' || !out.ai.provider) && !s.aiChosen) Object.assign(out.ai, { provider: 'puter', model: DEFAULT_SETTINGS.ai.model, baseUrl: '' });
+  return out;
 }
 
 export function saveSettings(s) {

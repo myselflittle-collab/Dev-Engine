@@ -97,3 +97,16 @@
 }
 
 .bd-m3d { width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 34px; } .bd-m3d small { font-size: 10px; padding: 0 4px; text-align: center; word-break: break-all; color: var(--muted); }
+
+/* agent flow */
+.flow-card { background: var(--bg-2); border: 1px solid var(--bg-3); border-radius: 10px; padding: 10px 12px; font-size: 13px; }
+.flow-card ol { list-style: none; padding: 0; margin: 8px 0 0; display: grid; gap: 5px; }
+.flow-card li { display: flex; align-items: center; gap: 6px; color: var(--muted); }
+.flow-card li.done { color: #6ee7a8; } .flow-card li.run { color: var(--text); font-weight: 600; } .flow-card li.fail { color: #ff8589; }
+.flow-card .ic { width: 16px; text-align: center; }
+.qcard .q, .plancard ul { margin: 10px 0; } .qcard .q b { display: block; margin-bottom: 6px; }
+.qcard .chips, .result .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
+.qcard .chip.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.qcard input, .plancard textarea { width: 100%; margin-top: 4px; }
+.qbtns { display: flex; gap: 6px; margin-top: 8px; }
+.plancard ul { padding-left: 18px; } .plancard li { margin: 3px 0; }

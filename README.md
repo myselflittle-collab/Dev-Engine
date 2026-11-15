@@ -29,6 +29,15 @@ No API key is needed for the builder, the design assistant or the app templates.
 - Desktop / tablet / phone preview, undo/redo, layers, themes and Google Fonts
 - **Publish:** full-screen preview, GitHub Pages, ZIP, single HTML file, or open as code
 
+### Replit-style Agent (free, no API key)
+Type what you want (e.g. *“create an application that will upscale images”*). Like Replit Agent, it:
+1. **asks clarifying questions** (tap an answer or skip),
+2. **shows a plan** to approve or change,
+3. **builds** all the files, 4. **runs and tests** them, 5. **fixes** errors and failing tests automatically,
+6. shows the **result** with next-step buttons (improve design, add features, dark mode, deploy…).
+
+The default AI is **free with no API key** via Puter.js (sign in to a free Puter account the first time). Pollinations is available as a no-signup backup.
+
 ### Connect any AI (optional)
 Claude, ChatGPT, **Gemini (free key)**, **Groq (free tier)**, **OpenRouter (free models)**, DeepSeek, Mistral, Ollama (local) or any OpenAI-compatible API — via **🔌 Connect AI**.
 

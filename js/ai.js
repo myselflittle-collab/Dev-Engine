@@ -21,6 +21,8 @@ Rules:
 
 /** AI providers. All except Anthropic use the OpenAI-compatible /chat/completions API. */
 export const AI_PROVIDERS = {
+  puter: { id: 'puter', label: 'Free AI (Puter)', icon: '⚡', desc: 'Claude/GPT/Gemini — no key, sign in once', model: 'claude-sonnet-4-6', baseUrl: '', keyUrl: 'https://puter.com', free: true, nokey: true, note: 'No API key needed. The first time, a Puter window asks you to sign in or create a free account; usage is covered by your own Puter account (free allowance).' },
+  pollinations: { id: 'pollinations', label: 'Pollinations', icon: '🌸', desc: 'Free, no signup (slow, rate-limited)', model: 'openai', baseUrl: 'https://text.pollinations.ai/openai', keyUrl: 'https://pollinations.ai', free: true, nokey: true, note: 'No signup. Anonymous use is rate-limited (about 1 request every 15 s) and quality is lower — good as a backup.' },
   anthropic: { id: 'anthropic', label: 'Claude', icon: '🟠', desc: 'Anthropic — best for coding', model: 'claude-sonnet-5-5', baseUrl: '', keyUrl: 'https://console.anthropic.com/settings/keys' },
   openai: { id: 'openai', label: 'ChatGPT', icon: '🟢', desc: 'OpenAI GPT models', model: 'gpt-5.4-mini', baseUrl: 'https://api.openai.com/v1', keyUrl: 'https://platform.openai.com/api-keys' },
   gemini: { id: 'gemini', label: 'Gemini', icon: '🔵', desc: 'Google — free key, no card', model: 'gemini-2.5-flash', baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai', keyUrl: 'https://aistudio.google.com/apikey', free: true, note: 'Google AI Studio gives a free Gemini key (no credit card). Free-tier prompts may be used by Google to improve products.' },
@@ -34,7 +36,7 @@ export const AI_PROVIDERS = {
 
 export function aiReady(settings) {
   const ai = (settings && settings.ai) || {};
-  return !!(ai.apiKey || ai.provider === 'ollama');
+  return !!(ai.apiKey || ai.provider === 'ollama' || (AI_PROVIDERS[ai.provider] && AI_PROVIDERS[ai.provider].nokey));
 }
 
 /** Parse <<<FILE ...>>> and <<<DELETE ...>>> blocks from model output. */
@@ -99,7 +101,8 @@ export function projectContext(project, { activeFile, problems = [], consoleText
  */
 export async function chat(settings, messages, { system = SYSTEM_PROMPT, onToken = () => {}, signal } = {}) {
   const ai = settings.ai || {};
-  if (!ai.apiKey && ai.provider !== 'ollama') throw new Error('No AI connected. Tap 🔌 Connect AI and add a key.');
+  if (!aiReady(settings)) throw new Error('No AI connected. Tap 🔌 Connect AI.');
+  if (ai.provider === 'puter') return puterChat(ai, messages, system, onToken, signal);
   if (ai.provider === 'anthropic') return anthropic(ai, messages, system, onToken, signal);
   return openaiCompat(ai, messages, system, onToken, signal);
 }
@@ -143,18 +146,66 @@ async function anthropic(ai, messages, system, onToken, signal) {
   return text;
 }
 
+function loadScriptOnce(src) {
+  return new Promise((res, rej) => {
+    if (document.querySelector(`script[data-src="${src}"]`)) { res(); return; }
+    const def = window.define; window.define = undefined; // hide Monaco's AMD loader
+    const sc = document.createElement('script');
+    sc.src = src; sc.dataset.src = src;
+    sc.onload = () => { window.define = def; res(); };
+    sc.onerror = () => { window.define = def; rej(new Error('Could not load ' + src + ' (check your internet connection)')); };
+    document.head.appendChild(sc);
+  });
+}
+
+/** Puter.js: free Claude/GPT/Gemini in the browser, no API key (user signs in to Puter once). */
+async function puterChat(ai, messages, system, onToken, signal) {
+  if (!window.puter) await loadScriptOnce('https://js.puter.com/v2/');
+  const msgs = [{ role: 'system', content: system }, ...messages];
+  const run = async (model) => {
+    const opts = { stream: true };
+    if (model) opts.model = model;
+    const resp = await window.puter.ai.chat(msgs, opts);
+    let text = '';
+    if (resp && typeof resp[Symbol.asyncIterator] === 'function') {
+      for await (const part of resp) {
+        if (signal && signal.aborted) throw new DOMException('Stopped', 'AbortError');
+        const t = (part && (part.text ?? (part.message && part.message.content))) || '';
+        if (t) { text += t; onToken(text); }
+      }
+    } else {
+      text = typeof resp === 'string' ? resp : (resp && (resp.message?.content?.[0]?.text || resp.message?.content || resp.text)) || String(resp);
+      onToken(text);
+    }
+    return text;
+  };
+  const msg = (e) => (e && (e.message || (e.error && (e.error.message || e.error)) || (typeof e === 'string' ? e : JSON.stringify(e)))) || 'Puter AI error';
+  try { return await run(ai.model); } catch (e) {
+    if (e && e.name === 'AbortError') throw e;
+    if (ai.model && /model|not found|unsupported|invalid/i.test(msg(e))) return run('');
+    throw new Error('Puter: ' + msg(e));
+  }
+}
+
 async function openaiCompat(ai, messages, system, onToken, signal) {
   const preset = AI_PROVIDERS[ai.provider] || AI_PROVIDERS.openai;
   const base = (ai.baseUrl && ai.baseUrl !== 'https://' ? ai.baseUrl : preset.baseUrl).replace(/\/$/, '');
   const headers = { 'content-type': 'application/json' };
   if (ai.apiKey) headers.authorization = 'Bearer ' + ai.apiKey;
   if (ai.provider === 'openrouter') { headers['HTTP-Referer'] = location.origin; headers['X-Title'] = 'Dev Engine'; }
-  const res = await fetch(base + '/chat/completions', {
+  const url = ai.provider === 'pollinations' ? base : base + '/chat/completions';
+  const res = await fetch(url, {
     method: 'POST', signal, headers,
     body: JSON.stringify({ model: ai.model, stream: true, messages: [{ role: 'system', content: system }, ...messages] }),
   });
   if (!res.ok) throw new Error(`API ${res.status}: ${(await res.text()).slice(0, 400)}`);
   let text = '';
+  if (!/event-stream/.test(res.headers.get('content-type') || '')) {
+    const raw = await res.text();
+    try { const j = JSON.parse(raw); text = j.choices?.[0]?.message?.content || raw; } catch { text = raw; }
+    onToken(text);
+    return text;
+  }
   await readSSE(res, (ev) => {
     const d = ev.choices && ev.choices[0] && ev.choices[0].delta;
     if (d && d.content) { text += d.content; onToken(text); }

@@ -131,6 +131,16 @@ async function handleRequest(text, { fromAgent } = {}) {
     location.hash = '#/site/' + p.id;
     return true;
   }
+  if ((c.type === 'app' || c.type === 'code' || (c.type === 'chat' && !fromAgent && text.trim().split(/\s+/).length >= 3 && !/^(hi|hello|hey|thanks|thank you)\b/i.test(text.trim()))) && aiReady()) {
+    const py = /\bpython\b/i.test(text);
+    const t = getTemplate(py ? 'python' : 'blank');
+    const nm = (c.name && c.name !== 'My App' ? c.name : text.replace(/^(please\s+)?(create|make|build|develop|write|generate|design)\s+(me\s+)?(an?|the)?\s*/i, '').split(/\s+/).slice(0, 4).join(' ')) || 'my-app';
+    const p = store.createProject({ name: nm.replace(/[^\w.-]+/g, '-').slice(0, 40), template: t.id, runtime: t.runtime, files: py ? t.files : { 'index.html': '<!DOCTYPE html>\n<html><body><h1>🔨 The Agent is building your app…</h1></body></html>\n' } });
+    p.prompt = text; store.saveProject(p);
+    S.pendingFlow = text;
+    location.hash = '#/repl/' + p.id;
+    return true;
+  }
   if (c.type === 'app' && c.recipe) {
     try {
       const files = await loadApp(c.recipe, c.name);
@@ -168,8 +178,9 @@ function appPickerModal(text) {
   const pr = modal({
     title: '🛠 Build an app', wide: true,
     body: el('div', { style: { display: 'flex', flexDirection: 'column', gap: '12px' } },
-      el('p', { style: { margin: 0 } }, `I don't have a ready-made template for “${text}”. To build any custom software from a description, connect an AI (some have free keys). Or start from one of these working apps:`),
-      el('button', { class: 'btn primary', onclick: () => { close(); connectAIModal(); } }, '🔌 Connect AI (Claude, ChatGPT, Gemini, Groq…)'),
+      el('p', { style: { margin: 0 } }, `To build “${text}” the Agent needs an AI. Turn on the free one (no API key — you just sign in to a free Puter account once), or start from one of these working apps:`),
+      el('button', { class: 'btn primary big', onclick: () => { close(); Object.assign(S.settings.ai, { provider: 'puter', model: 'claude-sonnet-4-6', apiKey: '', baseUrl: '' }); S.settings.aiChosen = true; store.saveSettings(S.settings); updateAIButton(); handleRequest(text); } }, '⚡ Use free AI and build it'),
+      el('button', { class: 'btn', onclick: () => { close(); connectAIModal(); } }, '🔌 Other AI (Claude, ChatGPT, Gemini, Groq…)'),
       grid),
     buttons: [{ label: 'Close', value: null }],
   });
@@ -186,6 +197,7 @@ function connectAIModal() {
   const base = el('input', { value: ai.baseUrl || '' });
   const baseRow = el('label', {}, 'API base URL', base);
   const keyLink = el('a', { target: '_blank', rel: 'noopener', class: 'small' });
+  const keyRow = el('label', {}, 'API key', key);
   const grid = el('div', { class: 'ai-presets' });
   const pickP = (id) => {
     const p = AI_PROVIDERS[id];
@@ -196,6 +208,7 @@ function connectAIModal() {
     keyLink.textContent = p.keyUrl ? `Get a ${p.label} API key ↗` : '';
     keyLink.href = p.keyUrl || '#';
     key.placeholder = id === 'ollama' ? 'Not needed for local Ollama' : 'Paste your API key';
+    keyRow.hidden = !!p.nokey;
     status.innerHTML = esc(p.note || '');
     $$('.ai-preset', grid).forEach((b) => b.classList.toggle('on', b.dataset.id === id));
   };
@@ -208,15 +221,16 @@ function connectAIModal() {
   const pr = modal({
     title: '🔌 Connect an AI', wide: true,
     body: el('div', { style: { display: 'flex', flexDirection: 'column', gap: '10px' } },
-      el('div', { class: 'small muted' }, 'Dev Engine works without AI (website builder, assistant commands, app templates, tests). Connect an AI to build ANY website or software from a description and to auto-fix bugs. Your key is stored only in this browser and sent only to the provider you choose.'),
-      grid, el('label', {}, 'API key', key), keyLink, el('label', {}, 'Model', model), baseRow, test, status),
+      el('div', { class: 'small muted' }, '⚡ Free AI (Puter) works with no API key — you only sign in to a free Puter account the first time. For your own keys, choose a provider below; keys are stored only in this browser and sent only to that provider.'),
+      grid, keyRow, keyLink, el('label', {}, 'Model', model), baseRow, test, status),
     buttons: [{ label: 'Disconnect', value: 'off' }, { label: 'Cancel', value: null }, { label: 'Save', class: 'primary', value: 'save' }],
   });
-  pickP(AI_PROVIDERS[ai.provider] ? ai.provider : 'anthropic');
+  pickP(AI_PROVIDERS[ai.provider] ? ai.provider : 'puter');
   if (ai.model) model.value = ai.model;
   pr.then((v) => {
+    if (v === 'save' || v === 'off') S.settings.aiChosen = true;
     if (v === 'save') { Object.assign(S.settings.ai, { provider: ai.provider, apiKey: key.value.trim(), model: model.value.trim(), baseUrl: base.value.trim() }); store.saveSettings(S.settings); toast(aiReady() ? 'AI connected ✓' : 'Saved', 'ok'); }
-    if (v === 'off') { S.settings.ai.apiKey = ''; if (S.settings.ai.provider === 'ollama') S.settings.ai.provider = 'anthropic'; store.saveSettings(S.settings); toast('AI disconnected'); }
+    if (v === 'off') { S.settings.ai.apiKey = ''; S.settings.ai.provider = 'anthropic'; store.saveSettings(S.settings); toast('AI disconnected'); }
     updateAIButton();
     if (S.panel === 'settings' && S.project) renderSide();
   });
@@ -348,6 +362,7 @@ function openWorkspace(p) {
   connectBackend();
   if (term) resetShell();
   if (S.autoRun) { S.autoRun = false; setTimeout(() => run(), 300); }
+  if (S.pendingFlow) { const t = S.pendingFlow; S.pendingFlow = null; setTimeout(() => runAgentFlow(t), 300); }
   if (S.pendingAgent) { const t = S.pendingAgent; S.pendingAgent = null; setTimeout(() => { setOut('agent'); setMobile('agent'); agentSend(t, { display: '🛠 ' + (p.prompt || 'Build the project'), label: 'Agent build', auto: true }).then(() => run()); }, 400); }
 }
 
@@ -1688,9 +1703,9 @@ async function fixWithAgent(kind, info) {
 
 /** Replit-Agent-style loop: build → test → fix, until green or max rounds. */
 async function autoFix() {
-  if (!S.project) return;
+  if (!S.project) return null;
   setOut('agent'); setMobile('agent', true);
-  if (needKey()) return;
+  if (needKey()) return null;
   const max = S.settings.ai.maxFixRounds || 3;
   agentBubble('sys', '🛠 Build → Test → Fix started');
   for (let round = 1; round <= max + 1; round++) {
@@ -1705,11 +1720,149 @@ async function autoFix() {
     const errors = allProblems().filter((p) => p.severity === 'error');
     status.textContent = `Round ${round}: ${errors.length} error(s), ${t.failed}/${t.total} failing test(s)`;
     void runRes;
-    if (!errors.length && !t.failed) { agentBubble('ai', renderMarkdown(`✅ **All green!** The app runs without errors${t.total ? ` and all ${t.total} tests pass` : ''}.`)); return; }
-    if (round > max) { agentBubble('ai', renderMarkdown(`⚠ Stopped after ${max} fix rounds. ${errors.length} error(s) and ${t.failed} failing test(s) remain — review the Problems and Tests tabs, or run the loop again.`)); return; }
+    if (!errors.length && !t.failed) { agentBubble('ai', renderMarkdown(`✅ **All green!** The app runs without errors${t.total ? ` and all ${t.total} tests pass` : ''}.`)); return { green: true, total: t.total, failed: 0, errors: 0, rounds: round }; }
+    if (round > max) { agentBubble('ai', renderMarkdown(`⚠ Stopped after ${max} fix rounds. ${errors.length} error(s) and ${t.failed} failing test(s) remain — review the Problems and Tests tabs, or run the loop again.`)); return { green: false, total: t.total, failed: t.failed, errors: errors.length, rounds: round }; }
     const r = await agentSend(`Round ${round} of automatic fixing. Running the app and tests produced the problems below (see "Current problems", "Recent console/run output" and "Latest test results"). Find the root causes and fix them by returning complete updated files.`, { auto: true, label: `Auto-fix round ${round}`, display: `🛠 Auto-fix round ${round}: ${errors.length} error(s), ${t.failed} failing test(s)` });
-    if (!r || !r.edits.length) { agentBubble('sys', 'The Agent made no changes — stopping.'); return; }
+    if (!r || !r.edits.length) { agentBubble('sys', 'The Agent made no changes — stopping.'); return { green: false, total: t.total, failed: t.failed, errors: errors.length, rounds: round }; }
   }
+  return null;
+}
+
+// =====================================================================
+// Replit-style Agent flow: understand → ask → plan → build → run & test → fix → result
+// =====================================================================
+const FLOW_STEPS = ['Understand the request', 'Ask clarifying questions', 'Make a plan', 'Build the app', 'Run & test', 'Fix bugs', 'Show the result'];
+
+function progressCard() {
+  const items = FLOW_STEPS.map((t) => el('li', { class: 'pend' }, el('span', { class: 'ic' }, '○'), ' ', t));
+  const card = el('div', { class: 'flow-card' }, el('b', {}, '🤖 Agent progress'), el('ol', {}, items));
+  $('#agent-msgs').append(card);
+  return {
+    set(i, st) {
+      const li = items[i]; li.className = st;
+      li.querySelector('.ic').innerHTML = st === 'done' ? '✓' : st === 'run' ? '<span class="spinner"></span>' : st === 'skip' ? '–' : st === 'fail' ? '✕' : '○';
+      $('#agent-msgs').scrollTop = $('#agent-msgs').scrollHeight;
+    },
+  };
+}
+
+/** Ask the AI for JSON (robust to code fences / extra text). */
+async function aiJSON(prompt, fallback) {
+  try {
+    const t = await chat(S.settings, [{ role: 'user', content: prompt }], { system: 'You are the planning module of a coding agent. Reply with ONE valid JSON object only — no prose, no code fences.' });
+    const m = t.match(/\{[\s\S]*\}/);
+    return m ? JSON.parse(m[0]) : fallback;
+  } catch (e) {
+    if (/Puter|API|connect|fetch|load/i.test(e.message)) throw e;
+    return fallback;
+  }
+}
+
+function askQuestions(questions) {
+  return new Promise((resolve) => {
+    const answers = questions.map(() => '');
+    const card = el('div', { class: 'msg ai qcard' }, el('div', {}, '❓ A few quick questions so I build the right thing:'));
+    questions.forEach((q, i) => {
+      const other = el('input', { placeholder: 'Or type your own answer…', oninput: () => { answers[i] = other.value; chips.forEach((c) => c.classList.remove('on')); } });
+      const chips = (q.options || []).slice(0, 5).map((o) => el('button', { type: 'button', class: 'chip', onclick: () => { answers[i] = o; other.value = ''; chips.forEach((c) => c.classList.toggle('on', c.textContent === o)); } }, o));
+      card.append(el('div', { class: 'q' }, el('b', {}, `${i + 1}. ${q.q}`), el('div', { class: 'chips' }, chips), other));
+    });
+    const done = (skip) => { card.querySelectorAll('button,input').forEach((x) => { x.disabled = true; }); resolve(skip ? [] : questions.map((q, i) => ({ q: q.q, a: answers[i] || 'You decide' }))); };
+    card.append(el('div', { class: 'qbtns' }, el('button', { class: 'btn primary sm', onclick: () => done(false) }, 'Continue →'), el('button', { class: 'btn sm', onclick: () => done(true) }, 'Skip — you decide')));
+    $('#agent-msgs').append(card);
+    $('#agent-msgs').scrollTop = $('#agent-msgs').scrollHeight;
+  });
+}
+
+function showPlan(plan) {
+  return new Promise((resolve) => {
+    const tweak = el('textarea', { rows: 2, placeholder: 'Want changes? e.g. “also add a download button”' });
+    const card = el('div', { class: 'msg ai plancard' },
+      el('div', { html: renderMarkdown(`📋 **Plan: ${esc(plan.name || 'Your app')}**\n${esc(plan.summary || '')}`) }),
+      el('ul', {}, (plan.features || []).map((f) => el('li', {}, f))),
+      plan.stack ? el('div', { class: 'small muted' }, `Tech: ${plan.stack === 'python' ? 'Python' : 'HTML, CSS & JavaScript (runs in the browser)'}${plan.tests !== false ? ' · with automated tests' : ''}`) : null,
+      tweak,
+      el('div', { class: 'qbtns' },
+        el('button', { class: 'btn primary sm', onclick: () => { lock(); resolve({ ok: true, change: tweak.value.trim() }); } }, '✅ Approve & build'),
+      ));
+    const lock = () => card.querySelectorAll('button,textarea').forEach((x) => { x.disabled = true; });
+    $('#agent-msgs').append(card);
+    $('#agent-msgs').scrollTop = $('#agent-msgs').scrollHeight;
+  });
+}
+
+async function runAgentFlow(request) {
+  setOut('agent'); setMobile('agent');
+  if (!aiReady()) { needKey(); return; }
+  S.flowBusy = true;
+  agentBubble('user', esc(request));
+  const prog = progressCard();
+  try {
+    prog.set(0, 'run');
+    const q = await aiJSON(`A user asked a coding agent (like Replit Agent) to build: "${request}".
+The app will run in a web browser (HTML/CSS/JavaScript) unless the user asked for Python.
+List at most 3 short clarifying questions whose answers would really change what gets built (features, style, inputs). Each needs 2-4 short suggested answers. If the request is already clear, return an empty list.
+JSON: {"questions":[{"q":"...","options":["...","..."]}]}`, { questions: [] });
+    prog.set(0, 'done');
+    let answers = [];
+    if (q.questions && q.questions.length) { prog.set(1, 'run'); answers = await askQuestions(q.questions.slice(0, 3)); prog.set(1, 'done'); } else prog.set(1, 'skip');
+    prog.set(2, 'run');
+    const qa = answers.map((x) => `- ${x.q} → ${x.a}`).join('\n');
+    let plan = await aiJSON(`Plan this app for a coding agent.
+Request: "${request}"
+${qa ? 'User answers:\n' + qa : ''}
+Default to a browser app (index.html, style.css, app.js + logic.js with pure functions + logic.test.js Jest-style tests) unless Python was asked for (then main.py + logic module + test_*.py pytest tests).
+JSON: {"name":"short app name","summary":"1-2 sentences","stack":"web"|"python","features":["5-8 concrete features"],"tests":true}`, { name: 'My App', summary: request, stack: /python/i.test(request) ? 'python' : 'web', features: [request], tests: true });
+    prog.set(2, 'done');
+    let approval = await showPlan(plan);
+    if (approval.change) {
+      plan = { ...plan, features: [...(plan.features || []), approval.change] };
+      agentBubble('sys', 'Plan updated with your change.');
+    }
+    // set runtime by stack
+    const p = S.project;
+    if (plan.stack === 'python' && p.runtime !== 'python') { p.runtime = 'python'; p.template = 'python'; }
+    if (plan.stack !== 'python' && p.runtime !== 'web') { p.runtime = 'web'; p.template = 'html'; }
+    if (plan.name) { p.name = String(plan.name).replace(/[^\w.-]+/g, '-').slice(0, 40) || p.name; $('#repl-name').value = p.name; }
+    saveNow();
+    prog.set(3, 'run');
+    const spec = `Build this ${plan.stack === 'python' ? 'Python' : 'browser (HTML/CSS/JavaScript)'} app from scratch, replacing any starter files.
+Original request: ${request}
+${qa ? 'User answers:\n' + qa + '\n' : ''}Plan: ${plan.summary || ''}
+Features:\n${(plan.features || []).map((f) => '- ' + f).join('\n')}
+
+Requirements:
+- ${plan.stack === 'python' ? 'main.py is the entry point; put core logic in a separate module and pytest tests in test_*.py.' : 'index.html loads style.css and app.js (<script type="module" src="app.js">). Put pure, testable logic in logic.js (ES module exports) and Jest-style tests (describe/test/expect) in logic.test.js. Do not use any build step; npm packages may be imported by bare name (they load from esm.sh).'}
+- Polished, modern, responsive UI that works on iPad and phones (touch friendly), with smooth subtle animations.
+- Handle errors and edge cases gracefully; no placeholder code or TODOs.
+- Everything must run without errors and all tests must pass.`;
+    const r = await agentSend(spec, { auto: true, label: 'Agent build', display: '🔨 Building: ' + (plan.name || request) });
+    if (!r || !r.edits.length) { prog.set(3, 'fail'); agentBubble('ai', renderMarkdown('⚠ The AI did not return any files. Tap **🔁 Try again** or rephrase your request.')).append(el('button', { class: 'btn sm primary', style: { marginTop: '6px' }, onclick: () => runAgentFlow(request) }, '🔁 Try again')); return; }
+    prog.set(3, 'done');
+    prog.set(4, 'run'); prog.set(5, 'run');
+    const res = await autoFix();
+    prog.set(4, 'done'); prog.set(5, res && res.green ? 'done' : 'fail');
+    prog.set(6, 'run');
+    if (effectiveRuntime() === 'web') { await runWeb(defaultEntry('web', S.project.files) || 'index.html', { quiet: true }); }
+    setOut('agent');
+    const sum = el('div', { class: 'msg ai result' },
+      el('div', { html: renderMarkdown(`${res && res.green ? '🎉' : '⚠'} **${esc(plan.name || 'Your app')} is ${res && res.green ? 'ready' : 'built, with some issues left'}.**\n${res ? (res.total ? `Tests: ${res.total - res.failed}/${res.total} passing. ` : '') + (res.errors ? `${res.errors} error(s) remain. ` : 'No errors. ') : ''}${effectiveRuntime() === 'web' ? 'Open **🌐 Webview** to use it.' : 'Output is in the **Console**.'}\n\nWhat next?`) }),
+      el('div', { class: 'chips' }, ['🌐 Open the app', '🎨 Make it look better', '➕ Add more features', '🌙 Add dark mode', '💡 Explain the code', '🚀 Deploy it'].map((t) => el('button', { class: 'chip', onclick: () => nextStep(t) }, t))));
+    $('#agent-msgs').append(sum);
+    prog.set(6, 'done');
+    $('#agent-msgs').scrollTop = $('#agent-msgs').scrollHeight;
+  } catch (e) {
+    agentBubble('ai', renderMarkdown(`⚠ ${esc(e.message || String(e))}`)).append(el('button', { class: 'btn sm primary', style: { marginTop: '6px' }, onclick: () => runAgentFlow(request) }, '🔁 Try again'), el('button', { class: 'btn sm', style: { marginTop: '6px', marginLeft: '6px' }, onclick: () => connectAIModal() }, '🔌 Change AI'));
+  } finally { S.flowBusy = false; }
+}
+
+async function nextStep(t) {
+  if (t.includes('Open the app')) { if (effectiveRuntime() === 'web') { setOut('webview'); setMobile('output', true); } else { await run(); } return; }
+  if (t.includes('Deploy')) return deployModal();
+  if (t.includes('Explain')) return quickAgent('explain');
+  const ask = { '🎨 Make it look better': 'Improve the visual design: more polished, modern and delightful, with subtle animations. Keep all features working.', '➕ Add more features': 'Suggest and add 2-3 useful new features that fit this app, with tests.', '🌙 Add dark mode': 'Add a dark/light mode toggle that remembers the choice.' }[t] || t;
+  const r = await agentSend(ask, { auto: true, label: t, display: t });
+  if (r && r.edits.length) await autoFix();
 }
 
 // =====================================================================
